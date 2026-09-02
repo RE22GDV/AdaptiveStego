@@ -29,7 +29,7 @@ from .exceptions import ContainerError, CryptoError
 
 __all__ = ["MAGIC", "VERSION", "FLAG_COMPRESSED", "FLAG_ENCRYPTED", "FLAG_ECC",
            "PREAMBLE_LEN", "PREAMBLE_ECC_NSYM", "Header", "pack", "unpack",
-           "container_size", "overhead", "parse_preamble"]
+           "container_size", "overhead", "max_message_bytes", "parse_preamble"]
 
 MAGIC = b"ASG1"
 VERSION = 1
@@ -152,11 +152,44 @@ def container_size(payload_len: int, flags: int, ecc_nsym: int) -> int:
 
 
 def overhead(*, encrypted: bool = False, ecc_nsym: int = 0) -> int:
-    """Fixed overhead in bytes, excluding the ECC expansion of the payload."""
+    """Fixed overhead in bytes, excluding the ECC expansion of the payload.
+
+    This is only the constant part. With error correction the payload itself
+    also grows, and the final block is padded to a whole 223 bytes, so this
+    number must not be used to work out the largest message that fits - use
+    :func:`max_message_bytes` for that.
+    """
     flags = FLAG_ENCRYPTED if encrypted else 0
     tag = crypto.TAG_LEN if encrypted else 0
     return (PREAMBLE_LEN + (PREAMBLE_ECC_NSYM if ecc_nsym else 0)
             + _body_len(flags) + ecc_nsym + tag)
+
+
+def max_message_bytes(capacity_bytes: int, *, encrypted: bool = False,
+                      ecc_nsym: int = 0) -> int:
+    """Largest message that still fits into ``capacity_bytes`` of container.
+
+    Subtracting a fixed overhead is wrong once error correction is enabled:
+    Reed-Solomon expands the payload block by block and pads the last block to
+    a full 223 bytes, so the true limit is a step function. It is inverted here
+    by binary search over :func:`container_size`, which is exact and monotone.
+
+    Compression can only make the payload smaller, and :func:`pack` keeps the
+    compressed form only when it is smaller, so the uncompressed size is the
+    worst case and the answer is always safe.
+    """
+    flags = FLAG_ENCRYPTED if encrypted else 0
+    tag = crypto.TAG_LEN if encrypted else 0
+    if container_size(tag, flags, ecc_nsym) > capacity_bytes:
+        return 0
+    low, high = 0, int(capacity_bytes)
+    while low < high:
+        mid = (low + high + 1) // 2
+        if container_size(mid + tag, flags, ecc_nsym) <= capacity_bytes:
+            low = mid
+        else:
+            high = mid - 1
+    return low
 
 
 def _read_preamble(read) -> Header:

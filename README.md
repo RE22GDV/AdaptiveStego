@@ -147,6 +147,16 @@ message = sl.extract(sl.read_image("stego.png"), method="adaptive",
                      key="my-key", password="pw")
 ```
 
+For experiments there is a raw mode that writes exactly the bits you give it,
+with no container header, so a payload of 0.4 bpp means exactly that:
+
+```python
+bits = sl.payload_bits_for_bpp(cover, 0.4)          # 0.4 * pixels, rounded
+payload = adaptivestego.prng.deterministic_bits("seed-material", "payload", bits)
+result = sl.embed_raw(cover, payload, method="adaptive", key="k")
+back = sl.extract_raw(result.stego, bits, method="adaptive", key="k")
+```
+
 The method, the key and the map settings are **not stored in the image**. The
 receiver has to know them; only what is needed to validate the data is embedded
 (see [the container format](docs/format.md)).
@@ -198,7 +208,7 @@ Full diagrams, including extraction and the lazy ordering, are in
 |---|---|---|---|
 | `sequential` | consecutive, from the top-left | LSB replacement | baseline, trivially detected |
 | `random` | keyed permutation | LSB replacement | keyed baseline |
-| `matching` | keyed permutation | +/-1 | immune to chi-square and SPA |
+| `matching` | keyed permutation | +/-1 | outside the reach of chi-square and SPA |
 | `edge` | Sobel gradient | LSB replacement | classic edge-adaptive LSB |
 | `adaptive` | combined complexity map | LSB replacement | the proposed method |
 | `adaptive-matching` | combined complexity map | +/-1 | the proposed method with +/-1 |
@@ -209,10 +219,36 @@ weights the channels by how visible a change is in each.
 
 ## Experimental results
 
-Everything below is reproduced by the scripts in `experiments/`. The runs used
-**12 synthetic covers of 256x256, three seeds each (n = 36 per cell)**, random
-incompressible payloads and compression disabled. Detectability is measured with
-sample pair analysis (SPA); a clean cover scores **0.0027**.
+Everything below is reproduced by the scripts in `experiments/`. The design
+matters as much as the numbers, so it is stated first.
+
+**Research mode.** Payloads are raw: exactly `bpp x pixels` pseudo-random bits,
+with no container header. The application container carries a fixed signature,
+flags and checksums, and those constant bytes would become part of the stego
+signal - an extra variable that has nothing to do with the algorithm under
+test. At 0.4 bpp on a 256x256 cover the payload is exactly 26214 bits.
+
+**One key and one payload per case.** Every (cover, replicate) pair derives its
+own embedding key and its own payload from the cover content, the replicate
+index and a master key:
+
+```
+case_id       = SHA-256(cover bytes + shape + replicate)
+embedding key = HMAC-SHA256(master key, "placement/" + case_id)
+payload       = HMAC-SHA256(master key, "payload/"   + case_id) -> Philox stream
+```
+
+A single fixed key and a single fixed payload would paint the *same* spatial
+pattern into every image of the same size, and a neural detector would learn
+that pattern instead of the embedding algorithm. The derivation is content
+addressed, so the whole experiment regenerates from one master key on any
+machine.
+
+**Confidence intervals are clustered.** Three replicates of one cover are not
+three independent observations - image content dominates every metric here.
+Replicates are averaged within a cover first, and the intervals come from a
+bootstrap over the 12 covers. Method comparisons are paired on the cover,
+because every method sees exactly the same images.
 
 ```bash
 python experiments/benchmark.py --synthetic 12 --size 256 --seeds 3 --out results/main
@@ -221,23 +257,43 @@ python experiments/report.py results/main.csv
 
 ### Detectability at an equal payload
 
+12 synthetic covers x 3 replicates, detectability from sample pair analysis
+(SPA); a clean cover scores **0.0027**. Intervals are 95% cluster bootstrap
+over covers.
+
 ![detectability](docs/figures/detectability.png)
 
 | Method | 0.05 bpp | 0.1 bpp | 0.2 bpp | 0.4 bpp | PSNR @0.4 | SSIM @0.4 |
 |---|---|---|---|---|---|---|
-| sequential | 0.0098 | 0.0250 | 0.0570 | 0.1230 ±0.0019 | 59.94 dB | 0.99910 |
-| random | 0.0095 | 0.0234 | 0.0588 | 0.1254 ±0.0023 | 59.96 dB | 0.99920 |
-| adaptive | 0.0108 | 0.0127 | 0.0231 | 0.0505 ±0.0018 | 59.97 dB | 0.99940 |
-| edge | 0.0095 | 0.0118 | 0.0164 | 0.0369 ±0.0017 | 59.96 dB | 0.99940 |
-| adaptive-matching | 0.0094 | 0.0099 | 0.0161 | **0.0314 ±0.0016** | 59.95 dB | 0.99940 |
-| matching | 0.0025 | 0.0025 | 0.0038 | 0.0029 ±0.0011 | 59.96 dB | 0.99920 |
+| sequential | 0.0128 | 0.0303 | 0.0630 | 0.1296 [0.1259, 0.1328] | 59.89 dB | 0.99900 |
+| random | 0.0105 | 0.0254 | 0.0584 | 0.1254 [0.1221, 0.1286] | 59.90 dB | 0.99920 |
+| adaptive | 0.0116 | 0.0149 | 0.0249 | 0.0524 [0.0496, 0.0549] | 59.90 dB | 0.99940 |
+| edge | 0.0111 | 0.0128 | 0.0184 | 0.0403 [0.0377, 0.0428] | 59.89 dB | 0.99940 |
+| adaptive-matching | 0.0099 | 0.0116 | 0.0184 | **0.0324 [0.0292, 0.0354]** | 59.89 dB | 0.99940 |
+| matching | 0.0027 | 0.0026 | 0.0024 | 0.0028 [0.0013, 0.0044] | 59.90 dB | 0.99920 |
 
-At an equal payload the adaptive ordering cuts the SPA estimate by a factor of
-**2.5** against random LSB, and combining it with +/-1 embedding by a factor of
-**4**, while PSNR stays level and SSIM improves slightly. `matching` sits at the
-cover baseline for a structural reason rather than a good one: SPA cannot detect
-+/-1 embedding at all, which is precisely why a neural detector is needed before
-any of these numbers become a real claim.
+Paired against random LSB on the same covers, at 0.4 bpp:
+
+| Method | SPA difference per cover | Ratio | Better on |
+|---|---|---|---|
+| adaptive | -0.0730 [-0.0751, -0.0710] | 0.42x | 12 of 12 covers |
+| edge | -0.0851 [-0.0868, -0.0832] | 0.32x | 12 of 12 covers |
+| adaptive-matching | -0.0931 [-0.0951, -0.0910] | 0.26x | 12 of 12 covers |
+| sequential | +0.0041 [+0.0030, +0.0054] | 1.03x | 0 of 12 covers |
+
+Three things worth stating plainly:
+
+* At a substantial payload the adaptive ordering is clearly better: 2.4x lower
+  SPA than random LSB at 0.4 bpp, 3.9x when combined with +/-1, on every single
+  cover, at equal PSNR and slightly better SSIM.
+* **At 0.05 bpp the advantage is gone.** `adaptive` is in fact marginally
+  *worse* than random there (+0.0011, interval excluding zero) and `edge` is
+  indistinguishable from it. With so few changes the estimator is near its own
+  noise floor, and concentrating those few changes buys nothing.
+* `matching` sits at the cover baseline for a structural reason, not a good
+  one: SPA is built on the value pairs that LSB replacement creates, so it is
+  not designed to detect +/-1 embedding at all. That number says nothing about
+  how hard `matching` is to detect with a modern detector.
 
 ### Ablation: which complexity map matters
 
@@ -247,46 +303,42 @@ SPA estimate for the adaptive codec with one map at a time (lower is better):
 
 | Map | 0.1 bpp | 0.2 bpp | 0.4 bpp |
 |---|---|---|---|
-| sobel | 0.0118 | 0.0164 | **0.0369** |
-| variance | 0.0216 | 0.0272 | 0.0483 |
-| combined | 0.0127 | 0.0231 | 0.0505 |
-| entropy | 0.0138 | 0.0255 | 0.0568 |
-| highfreq | 0.0296 | 0.0484 | 0.0838 |
-| laplacian | 0.0250 | 0.0450 | 0.0838 |
-| uniform (control) | 0.0234 | 0.0573 | 0.1230 |
-| chroma | 0.0678 | 0.1101 | 0.2344 |
+| sobel | 0.0128 | 0.0184 | **0.0403** |
+| variance | 0.0228 | 0.0287 | 0.0503 |
+| combined | 0.0149 | 0.0249 | 0.0524 |
+| entropy | 0.0147 | 0.0278 | 0.0580 |
+| highfreq | 0.0317 | 0.0503 | 0.0856 |
+| laplacian | 0.0269 | 0.0480 | 0.0869 |
+| uniform (control) | 0.0258 | 0.0594 | 0.1268 |
+| chroma | 0.0752 | 0.1131 | 0.2362 |
 
-Three things worth stating plainly:
-
-* The **control works**. A uniform map turns the adaptive codec into keyed
-  random placement, and it scores 0.1230 against random LSB's 0.1254. The gain
-  really does come from the content of the map and not from the machinery
-  around it.
-* The **plain Sobel map beats the combined one** in this setting. The combined
-  weights were chosen a priori and have deliberately not been tuned on these
-  results; tuning them here and then reporting the same numbers would be
-  fitting the test set.
-* **Chroma is actively harmful** - twice as detectable as no adaptivity at all.
-  Placing bits where the colour channels disagree turns out to correlate with
+* The **control works**. A uniform map removes every content preference, and
+  the adaptive codec then scores 0.1268 against random LSB's 0.1254. The gain
+  comes from the content of the map, not from the machinery around it.
+* The **plain Sobel map beats the combined one**. The combined weights were
+  chosen a priori and have deliberately not been tuned on these results;
+  tuning them here and then reporting the same numbers would be fitting the
+  test set.
+* **Chroma is actively harmful** - almost twice as detectable as no adaptivity
+  at all. Placing bits where the colour channels disagree correlates with
   exactly what SPA looks for.
 
 ### Robustness and error correction
 
-Fraction of messages recovered in full at 0.2 bpp, by Reed-Solomon parity bytes:
+Application mode, 0.2 bpp, fraction of messages recovered in full:
 
 | Method | Attack | no ECC | 8 | 16 | 32 |
 |---|---|---|---|---|---|
 | random | pixel damage, p=0.0002 | 0.33 | 1.00 | 1.00 | 1.00 |
-| random | pixel damage, p=0.001 | 0.00 | 1.00 | 1.00 | 1.00 |
+| random | pixel damage, p=0.001 | 0.00 | 0.96 | 1.00 | 1.00 |
 | random | salt and pepper, p=0.0002 | 0.33 | 1.00 | 1.00 | 1.00 |
 | adaptive | any of the above | 0.00 | 0.00 | 0.00 | 0.00 |
 
-Error correction rescues the non-adaptive methods completely, and does nothing
-at all for the adaptive ones. That is not a bug in the ECC: the receiver rebuilds
-the order of positions from the image, so a single sample that moves into a
-different band after an attack shifts every subsequent bit. The proper fix is
-syndrome coding (STC), which is the next major item on the
-[roadmap](docs/roadmap.md).
+Error correction rescues the non-adaptive methods completely and does nothing
+at all for the adaptive ones. That is not a failure of the ECC: the receiver
+rebuilds the order of positions from the image, so one sample that moves into a
+different band after an attack shifts every subsequent bit. Syndrome coding
+(STC) is what removes that dependence - see the [roadmap](docs/roadmap.md).
 
 No method survives JPEG, rescaling or noise above sigma = 0.3. That is a
 property of LSB embedding in the spatial domain, not of this implementation.
@@ -366,6 +418,8 @@ command line, the library version, the key and the seeds.
   becomes real against an SRNet-class detector, on BOSSBase or ALASKA#2.
 * **The results above are on synthetic covers.** They demonstrate that the bench
   works and that the effect exists; they are not a publishable finding.
+* **Robustness numbers depend on the mode.** Error correction only exists in the
+  application container; research mode carries the payload and nothing else.
 
 The full threat model is in [docs/limitations.md](docs/limitations.md).
 
@@ -404,9 +458,18 @@ ruff check src tests experiments examples
 python -m adaptivestego selftest
 ```
 
-CI runs the suite on Windows, macOS and Linux for Python 3.10 and 3.12, plus a
-job with only numpy and opencv installed to make sure the optional dependencies
-really are optional.
+CI runs the suite on Windows, macOS and Linux for Python 3.10 through 3.13,
+plus a job with only numpy and opencv installed to make sure the optional
+dependencies really are optional. The Linux jobs run the GUI tests under xvfb
+rather than skipping them.
+
+For a frozen environment there is `requirements-lock.txt` (exact versions of
+every direct and transitive dependency) and a `Dockerfile`:
+
+```bash
+docker build -t adaptivestego .
+docker run --rm adaptivestego selftest
+```
 
 Where the project is going next - syndrome coding, an SRNet detector, runs on
 BOSSBase and ALASKA#2 - is written down in [docs/roadmap.md](docs/roadmap.md).

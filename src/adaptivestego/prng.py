@@ -18,7 +18,8 @@ import hmac
 import numpy as np
 
 __all__ = ["derive_stream", "keyed_uniform_u64", "keyed_permutation",
-           "stable_argsort_prefix", "normalize_key"]
+           "stable_argsort_prefix", "deterministic_bytes", "deterministic_bits",
+           "normalize_key"]
 
 _DOMAIN = b"adaptivestego/v1/"
 
@@ -86,3 +87,27 @@ def keyed_permutation(n: int, key, tag: str = "positions",
     if limit is None or limit >= n:
         return np.argsort(marks, kind="stable").astype(np.int64)
     return stable_argsort_prefix(marks, limit)
+
+
+def deterministic_bytes(key, tag: str, n: int) -> bytes:
+    """n pseudo-random bytes, reproducible from (key, tag) on any machine.
+
+    Used to generate experiment payloads. ``numpy.random.Generator`` is not
+    suitable here: its methods may change between releases, which would make a
+    published dataset impossible to regenerate. The Philox stream is written
+    out little-endian explicitly so the result does not depend on the byte
+    order of the machine either.
+    """
+    if n <= 0:
+        return b""
+    words = derive_stream(key, tag).random_raw((n + 7) // 8)
+    return words.astype("<u8").tobytes()[:n]
+
+
+def deterministic_bits(key, tag: str, n_bits: int) -> np.ndarray:
+    """n_bits pseudo-random bits as a uint8 array of zeros and ones."""
+    if n_bits <= 0:
+        return np.empty(0, dtype=np.uint8)
+    raw = np.frombuffer(deterministic_bytes(key, tag, (n_bits + 7) // 8),
+                        dtype=np.uint8)
+    return np.unpackbits(raw)[:n_bits].copy()

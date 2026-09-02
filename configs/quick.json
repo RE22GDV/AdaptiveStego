@@ -1,10 +1,11 @@
 {
   "synthetic": 6,
   "size": 192,
+  "mode": "research",
   "methods": ["sequential", "random", "matching", "edge", "adaptive", "adaptive-matching"],
   "payloads": [0.05, 0.1, 0.2, 0.4],
   "attacks": ["identity", "noise:sigma=1", "jpeg:quality=95", "drop:p=0.001"],
   "seeds": 1,
-  "key": "benchmark-key",
+  "master_key": "quick-v1",
   "out": "results/quick"
 }

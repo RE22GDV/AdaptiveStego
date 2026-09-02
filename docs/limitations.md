@@ -50,8 +50,10 @@ S-UNIWARD work, and it is the next major step for this bench (see
 * `sequential` is trivially detected by chi-square and SPA. It exists only as a
   baseline.
 * LSB replacement (`replace`) is vulnerable to SPA and RS analysis regardless of
-  the order of positions. `matching` (+/-1) is free of those attacks but not of
-  modern neural detectors.
+  the order of positions. Those attacks are built on the value pairs that LSB
+  replacement creates, so they are not designed to detect `matching` (+/-1) and
+  a low score from them is not evidence that it is hard to detect. Feature-based
+  and neural detectors target +/-1 embedding directly.
 * The classical detectors in `adaptivestego.analysis` are a weak baseline. A claim
   that a method is "less detectable" only holds against an SRNet-class detector
   trained on the same images and the same payload.

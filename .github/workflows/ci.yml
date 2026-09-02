@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.10", "3.12"]
+        python: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v5
@@ -34,7 +34,9 @@ jobs:
           pip install -e ".[all]"
 
       - name: Run the test suite
-        run: pytest -q
+        # xvfb gives the Linux runners a display, so the GUI tests actually
+        # execute there instead of skipping themselves.
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a pytest -q' || 'pytest -q' }}
 
       - name: Verify cross-platform determinism
         run: python -m adaptivestego selftest

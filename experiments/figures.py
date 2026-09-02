@@ -21,6 +21,10 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "src"))
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from stats import cluster_summary  # noqa: E402
+
 import adaptivestego as sl  # noqa: E402
 from adaptivestego.testing import synthetic_cover  # noqa: E402
 
@@ -67,19 +71,19 @@ def placement_figure(path: str) -> None:
 
 
 def detectability_figure(csv_path: str, path: str) -> None:
-    """Payload against the SPA estimate, with 95% confidence intervals."""
+    """Payload against the SPA estimate, with cluster bootstrap intervals."""
     import pandas as pd
 
     plt = _plt()
     df = pd.read_csv(csv_path)
     df = df[df["attack"] == "identity"]
+    summary = cluster_summary(df, "spa_stego", ["method", "bpp_target"])
 
     fig, ax = plt.subplots(figsize=(7.4, 4.6), dpi=140)
-    for method, group in df.groupby("method"):
-        agg = group.groupby("bpp_target")["spa_stego"].agg(
-            ["mean", "std", "size"]).reset_index()
-        ci = 1.96 * agg["std"] / np.sqrt(agg["size"])
-        ax.errorbar(agg["bpp_target"], agg["mean"], yerr=ci, marker="o",
+    for method, group in summary.groupby("method"):
+        group = group.sort_values("bpp_target")
+        yerr = [group["mean"] - group["ci_low"], group["ci_high"] - group["mean"]]
+        ax.errorbar(group["bpp_target"], group["mean"], yerr=yerr, marker="o",
                     capsize=3, label=method)
     ax.axhline(df["spa_cover"].mean(), color="grey", linestyle=":",
                label="clean cover")
@@ -100,14 +104,17 @@ def ablation_figure(csv_path: str, path: str) -> None:
 
     plt = _plt()
     df = pd.read_csv(csv_path)
-    order = df[df["bpp"] == df["bpp"].max()].sort_values("spa")["map"].tolist()
+    top = df["bpp_target"].max()
+    order = df[df["bpp_target"] == top].sort_values("spa_stego")["map"].tolist()
 
     fig, ax = plt.subplots(figsize=(7.4, 4.6), dpi=140)
     for name in order:
-        group = df[df["map"] == name].sort_values("bpp")
+        group = df[df["map"] == name].sort_values("bpp_target")
         style = {"linewidth": 2.4} if name in ("combined", "uniform") else {}
-        ax.errorbar(group["bpp"], group["spa"], yerr=group["spa_ci"], marker="o",
-                    capsize=3, label=name, **style)
+        yerr = [group["spa_stego"] - group["ci_low"],
+                group["ci_high"] - group["spa_stego"]]
+        ax.errorbar(group["bpp_target"], group["spa_stego"], yerr=yerr,
+                    marker="o", capsize=3, label=name, **style)
     ax.set_xlabel("payload, bits per pixel")
     ax.set_ylabel("SPA estimate (lower is better)")
     ax.set_title("Ablation: which complexity map drives the placement")

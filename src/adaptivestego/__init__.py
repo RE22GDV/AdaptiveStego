@@ -12,7 +12,18 @@ Quick start::
 The desktop interface opens with ``python -m adaptivestego gui``.
 """
 
-from .api import EmbedResult, capacity, embed, embed_file, extract, extract_file
+from . import container
+from .api import (
+    EmbedResult,
+    capacity,
+    embed,
+    embed_file,
+    embed_raw,
+    extract,
+    extract_file,
+    extract_raw,
+    payload_bits_for_bpp,
+)
 from .codecs import CODECS, EmbedParams, codec_names, get_codec
 from .exceptions import (
     CapacityError,
@@ -27,8 +38,9 @@ from .maps import MAP_KINDS, complexity_map
 __version__ = "0.4.0"
 
 __all__ = [
-    "__version__",
+    "__version__", "container",
     "embed", "extract", "capacity", "embed_file", "extract_file", "EmbedResult",
+    "embed_raw", "extract_raw", "payload_bits_for_bpp",
     "read_image", "write_image",
     "CODECS", "codec_names", "get_codec", "EmbedParams",
     "complexity_map", "MAP_KINDS",

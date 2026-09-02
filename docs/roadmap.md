@@ -21,29 +21,54 @@
 * [x] `performance.py` measuring speed and memory
 * [x] desktop interface in English, Ukrainian and Russian
 * [x] `selftest` digest proving two installations are interoperable
+* [x] research mode: raw payloads with no container, for algorithm comparison
+* [x] per-case embedding keys and payloads derived from the cover content
+* [x] cluster bootstrap and paired comparisons instead of pseudo-replicated CIs
+* [x] exact capacity accounting, including the Reed-Solomon block expansion
 * [ ] RS analysis and calibrated features (SPAM, SRM) as a stronger baseline
+* [ ] validate the chi-square and SPA implementations against published vectors
 * [ ] parallel execution over images (multiprocessing)
 
 ## Stage 3 - the scientific part
 
-* [ ] **Syndrome coding (STC).** The main technical item: it would let the
-      adaptive method survive localised damage and brings the bench in line with
-      modern algorithms. Today the position order is globally fragile
-      (see [limitations.md](limitations.md)).
+Order of work, because several items depend on the ones before them:
+STC and its verification, then a cost pipeline comparable with WOW and
+S-UNIWARD, then a smoke run on 100-200 BOSSBase images, then freezing the
+protocol, then the full dataset, and only then training a detector on it.
+
+* [ ] **Syndrome coding (STC).** The main technical item. STC removes the
+      decoder's dependence on the adaptive ranking and enables minimum-distortion
+      embedding: the cost map exists only on the encoder side, the message is
+      read as a syndrome over a fixed raster order, and a damaged sample no
+      longer shifts the whole stream. STC is not itself an error-correcting
+      code - after an attack the syndrome still changes, so robustness to local
+      corruption comes from ECC on top and has to be measured experimentally.
+* [ ] Turn the priority map into per-sample costs. STC needs a cost for each
+      direction - rho+ for +1 and rho- for -1 - with the direction forbidden at
+      0 and at 255 given wet cost. The order of samples becomes a fixed raster
+      order, and the cost map is used by the encoder only.
+* [ ] Verify the STC implementation, not just its round-trip: the syndrome must
+      satisfy H y = m, and on short vectors (n <= 20) exhaustive search must
+      confirm that the solution really is of minimum cost. Also test the 0 and
+      255 boundaries, several trellis heights, embedding efficiency and the
+      achieved total distortion.
 * [ ] A WOW / S-UNIWARD style cost function and a comparison against them at an
       equal payload (Binghamton DDE Lab implementations).
 * [ ] SRNet as the detector: trained on cover/stego pairs, reported as accuracy,
       ROC-AUC and P_E. An RTX 4090 is enough for BOSSBase.
 * [ ] Runs on BOSSBase 1.01 and ALASKA#2 with splits by image and by camera.
 * [ ] Ablation over maps, channels, embedding depth and quantisation.
-* [ ] Three seeds, confidence intervals, significance testing.
+* [ ] One independent embedding realisation per cover on the full dataset;
+      cluster bootstrap and paired tests for the final comparisons.
 
 ## Stage 4 - publication
 
 * [ ] the hypothesis and the protocol frozen before the final runs
 * [ ] tables and the main figure: payload (bpp) against detection probability
-* [ ] code, configurations, seeds and model weights published with the paper
-* [ ] a DOI through Zenodo and a filled-in `CITATION.cff`
+* [ ] code, configurations, master keys and model weights published with the paper
+* [ ] the environment frozen through `requirements-lock.txt` and the `Dockerfile`
+* [ ] `CITATION.cff` completed with the author's full name, affiliation and ORCID
+* [ ] a DOI through Zenodo
 
 ## Possible directions afterwards
 
