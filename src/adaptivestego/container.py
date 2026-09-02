@@ -1,7 +1,7 @@
-"""The SGL1 container format.
+"""The ASG1 container format.
 
     +- preamble (8 bytes, ECC protected only when ECC is on) ---------------+
-    | magic "SGL1" (4) | version (1) | flags (1) | ecc_nsym (1) | check (1) |
+    | magic "ASG1" (4) | version (1) | flags (1) | ecc_nsym (1) | check (1) |
     +----------------------------------------------------------------------+
     +- header body (16 bytes, or 44 when encrypted; one RS block) ----------+
     | payload_len u32 | plain_len u32 | plain_crc32 u32 | kdf u8 | rsv (3)  |
@@ -31,7 +31,7 @@ __all__ = ["MAGIC", "VERSION", "FLAG_COMPRESSED", "FLAG_ENCRYPTED", "FLAG_ECC",
            "PREAMBLE_LEN", "PREAMBLE_ECC_NSYM", "Header", "pack", "unpack",
            "container_size", "overhead", "parse_preamble"]
 
-MAGIC = b"SGL1"
+MAGIC = b"ASG1"
 VERSION = 1
 
 FLAG_COMPRESSED = 0b0000_0001

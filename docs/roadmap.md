@@ -4,7 +4,7 @@
 
 * [x] library separated from the interface; the original script kept in `legacy/`
 * [x] UTF-8 instead of `ord(ch):08b`, lengths in bytes, arbitrary `bytes` payloads
-* [x] the SGL1 container: magic, version, flags, header CRC, message CRC
+* [x] the ASG1 container: magic, version, flags, header CRC, message CRC
 * [x] zlib, AES-256-GCM with scrypt, Reed-Solomon
 * [x] keyed placement that is reproducible across machines and numpy versions
 * [x] adaptive embedding driven by a complexity map, with no side information

@@ -20,7 +20,7 @@ import numpy as np
 __all__ = ["derive_stream", "keyed_uniform_u64", "keyed_permutation",
            "stable_argsort_prefix", "normalize_key"]
 
-_DOMAIN = b"stegolab/v1/"
+_DOMAIN = b"adaptivestego/v1/"
 
 
 def normalize_key(key) -> bytes:

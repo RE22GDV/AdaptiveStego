@@ -1,4 +1,4 @@
-# Runtime requirements for stegolab.
+# Runtime requirements for adaptivestego.
 #   pip install -r requirements.txt
 #
 # The first two lines are all that the library needs. The rest unlock optional

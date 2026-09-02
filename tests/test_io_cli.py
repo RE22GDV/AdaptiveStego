@@ -8,10 +8,10 @@ import tempfile
 import numpy as np
 from conftest import raises
 
-import stegolab as sl
-from stegolab.exceptions import StegoError
-from stegolab.image_io import read_image, write_image
-from stegolab.testing import synthetic_cover
+import adaptivestego as sl
+from adaptivestego.exceptions import StegoError
+from adaptivestego.image_io import read_image, write_image
+from adaptivestego.testing import synthetic_cover
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MESSAGE = "Message through a file: UTF-8 and paths, Привет."
@@ -56,7 +56,7 @@ def test_embed_file_roundtrip():
 def _run_cli(args, tmp):
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "src"),
                PYTHONIOENCODING="utf-8")
-    return subprocess.run([sys.executable, "-m", "stegolab", *args], cwd=tmp,
+    return subprocess.run([sys.executable, "-m", "adaptivestego", *args], cwd=tmp,
                           env=env, capture_output=True, text=True, encoding="utf-8")
 
 

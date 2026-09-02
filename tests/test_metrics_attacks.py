@@ -5,9 +5,9 @@ import math
 import numpy as np
 from conftest import raises
 
-import stegolab as sl
-from stegolab import analysis, attacks, metrics
-from stegolab.testing import synthetic_cover
+import adaptivestego as sl
+from adaptivestego import analysis, attacks, metrics
+from adaptivestego.testing import synthetic_cover
 
 MESSAGE = "a message used to check robustness " * 4
 

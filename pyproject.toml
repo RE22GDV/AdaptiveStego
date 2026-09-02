@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "stegolab"
-version = "0.3.0"
+name = "adaptivestego"
+version = "0.4.0"
 description = "Research bench for adaptive image steganography and steganalysis: content-adaptive LSB embedding, metrics, attacks and a desktop UI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -45,15 +45,15 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/RE22GDV/stegolab"
-Documentation = "https://github.com/RE22GDV/stegolab/tree/main/docs"
-Issues = "https://github.com/RE22GDV/stegolab/issues"
+Homepage = "https://github.com/RE22GDV/AdaptiveStego"
+Documentation = "https://github.com/RE22GDV/AdaptiveStego/tree/main/docs"
+Issues = "https://github.com/RE22GDV/AdaptiveStego/issues"
 
 [project.scripts]
-stegolab = "stegolab.cli:main"
+adaptivestego = "adaptivestego.cli:main"
 
 [project.gui-scripts]
-stegolab-gui = "stegolab.gui:main"
+adaptivestego-gui = "adaptivestego.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

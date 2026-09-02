@@ -1,15 +1,15 @@
-"""stegolab - a research bench for image steganography and steganalysis.
+"""AdaptiveStego - a research bench for image steganography and steganalysis.
 
 Quick start::
 
-    import stegolab as sl
+    import adaptivestego as sl
 
     img = sl.read_image("cover.png")
     res = sl.embed(img, "secret", method="adaptive", key="my-key")
     sl.write_image("stego.png", res.stego)
     print(sl.extract(sl.read_image("stego.png"), method="adaptive", key="my-key"))
 
-The desktop interface opens with ``python -m stegolab gui``.
+The desktop interface opens with ``python -m adaptivestego gui``.
 """
 
 from .api import EmbedResult, capacity, embed, embed_file, extract, extract_file
@@ -24,7 +24,7 @@ from .exceptions import (
 from .image_io import read_image, write_image
 from .maps import MAP_KINDS, complexity_map
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "__version__",

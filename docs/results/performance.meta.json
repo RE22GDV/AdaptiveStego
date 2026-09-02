@@ -5,7 +5,7 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
     "machine": "AMD64",
-    "stegolab": "0.3.0"
+    "adaptivestego": "0.4.0"
   },
   "argv": [
     "--sizes",

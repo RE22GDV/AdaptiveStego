@@ -6,7 +6,7 @@ display or no Tk installation is available (headless CI, minimal Linux images).
 
 from conftest import skip
 
-from stegolab import i18n
+from adaptivestego import i18n
 
 
 def test_every_language_has_every_key():
@@ -62,11 +62,11 @@ def _tk_root():
 
 
 def test_gui_builds_and_switches_language():
-    from stegolab.gui import StegoLabApp
+    from adaptivestego.gui import AdaptiveStegoApp
 
     root = _tk_root()
     try:
-        app = StegoLabApp(root, language="en")
+        app = AdaptiveStegoApp(root, language="en")
         assert app.notebook.index("end") == 5
         english = app.notebook.tab(0, "text")
 
@@ -83,8 +83,8 @@ def test_gui_builds_and_switches_language():
 
 
 def test_gui_preview_conversion():
-    from stegolab.gui import _change_map, _to_photo
-    from stegolab.testing import synthetic_cover
+    from adaptivestego.gui import _change_map, _to_photo
+    from adaptivestego.testing import synthetic_cover
 
     root = _tk_root()
     try:
@@ -104,7 +104,7 @@ def test_gui_reports_missing_tkinter_gracefully():
     """Without Tk the entry point must explain how to install it, not crash."""
     import builtins
 
-    from stegolab import gui
+    from adaptivestego import gui
 
     real_import = builtins.__import__
 
@@ -122,11 +122,11 @@ def test_gui_reports_missing_tkinter_gracefully():
 
 def test_params_state_is_translated_for_channels():
     """The "all channels" option must round-trip through the API mapping."""
-    from stegolab.gui import StegoLabApp
+    from adaptivestego.gui import AdaptiveStegoApp
 
     root = _tk_root()
     try:
-        app = StegoLabApp(root, language="ru")
+        app = AdaptiveStegoApp(root, language="ru")
         kwargs = app._params_kwargs("embed")
         assert "channels" not in kwargs       # "all" must not become a channel list
         assert kwargs["method"] in ("adaptive",)

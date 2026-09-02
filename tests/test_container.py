@@ -1,9 +1,9 @@
-"""Tests for the SGL1 container format."""
+"""Tests for the ASG1 container format."""
 
 from conftest import raises, skip
 
-from stegolab import container, crypto, ecc
-from stegolab.exceptions import ContainerError, CryptoError
+from adaptivestego import container, crypto, ecc
+from adaptivestego.exceptions import ContainerError, CryptoError
 
 
 def _reader(blob: bytes):

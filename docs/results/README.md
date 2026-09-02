@@ -14,5 +14,5 @@ with the commands below and the summaries will be reproduced exactly.
 | `performance.meta.json` | the machine those timings were measured on |
 
 Timings depend on the machine; every other column is deterministic and should
-match on any installation whose `python -m stegolab selftest` digest agrees with
+match on any installation whose `python -m adaptivestego selftest` digest agrees with
 the reference one.

@@ -1,4 +1,4 @@
-"""Exception types raised by stegolab."""
+"""Exception types raised by adaptivestego."""
 
 
 class StegoError(Exception):

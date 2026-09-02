@@ -14,7 +14,7 @@ flowchart TB
     end
 
     subgraph payload["Payload pipeline"]
-        CONT["container.py<br/>SGL1 header, CRC"]
+        CONT["container.py<br/>ASG1 header, CRC"]
         CRYPTO["crypto.py<br/>scrypt + AES-256-GCM"]
         ECC["ecc.py<br/>Reed-Solomon"]
         BITIO["bitio.py<br/>bytes to bits"]
@@ -65,7 +65,7 @@ flowchart LR
     SKIP --> E
     E -->|yes| AES["scrypt + AES-256-GCM"]
     E -->|no| PLAIN[" "]
-    AES --> HDR["SGL1 header<br/>magic, flags, CRC32"]
+    AES --> HDR["ASG1 header<br/>magic, flags, CRC32"]
     PLAIN --> HDR
     HDR --> R{"ECC?"}
     R -->|yes| RS["Reed-Solomon"]
@@ -95,7 +95,7 @@ order of positions is reproduced without any side information.
 flowchart LR
     STEGO["stego image"] --> ORDER2["rebuild the order<br/>same map, same key"]
     ORDER2 --> P1["read 8 bytes"]
-    P1 --> MAGIC{"magic SGL1<br/>and check byte"}
+    P1 --> MAGIC{"magic ASG1<br/>and check byte"}
     MAGIC -->|no| FAIL["no message, or<br/>wrong key/method"]
     MAGIC -->|yes| HEAD["read the header body<br/>lengths, CRC, salt, nonce"]
     HEAD --> GROW["extend the order to<br/>the announced payload"]

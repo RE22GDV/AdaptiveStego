@@ -1,4 +1,4 @@
-# The SGL1 container format
+# The ASG1 container format
 
 A container is a byte string written into the samples of an image in the order
 chosen by the embedding method. Neither the method, nor the key, nor the map
@@ -9,7 +9,7 @@ Only what is needed to validate and unpack the data is stored.
 
 ```
 preamble (8 bytes; plus 8 parity bytes when ECC is on)
-  0..3   magic     "SGL1"
+  0..3   magic     "ASG1"
   4      version   1
   5      flags     bit0 COMPRESSED, bit1 ENCRYPTED, bit2 ECC
   6      ecc_nsym  Reed-Solomon parity bytes per block (0..32)

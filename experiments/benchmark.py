@@ -31,10 +31,10 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "src"))
 
-import stegolab as sl  # noqa: E402
-from stegolab import analysis, attacks, metrics  # noqa: E402
-from stegolab.exceptions import StegoError  # noqa: E402
-from stegolab.testing import synthetic_cover  # noqa: E402
+import adaptivestego as sl  # noqa: E402
+from adaptivestego import analysis, attacks, metrics  # noqa: E402
+from adaptivestego.exceptions import StegoError  # noqa: E402
+from adaptivestego.testing import synthetic_cover  # noqa: E402
 
 DEFAULT_METHODS = ["sequential", "random", "matching", "edge", "adaptive",
                    "adaptive-matching"]
@@ -181,7 +181,7 @@ def main(argv=None) -> int:
         writer.writerows(rows)
     with open(f"{args.out}.meta.json", "w", encoding="utf-8") as f:
         json.dump({"argv": sys.argv[1:], "n_rows": len(rows),
-                   "stegolab_version": sl.__version__,
+                   "adaptivestego_version": sl.__version__,
                    "methods": args.methods, "payloads": args.payloads,
                    "attacks": args.attacks, "seeds": args.seeds,
                    "key": args.key, "bits": args.bits, "map": args.map_kind,

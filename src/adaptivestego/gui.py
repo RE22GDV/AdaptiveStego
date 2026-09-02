@@ -1,4 +1,4 @@
-"""Desktop interface for stegolab, built on tkinter.
+"""Desktop interface for adaptivestego, built on tkinter.
 
 Tkinter ships with CPython on Windows and macOS, so the application runs with
 no dependencies beyond the library itself. On some Linux distributions the Tk
@@ -30,7 +30,7 @@ from .image_io import LOSSLESS_EXT, read_image, write_image
 from .maps import MAP_KINDS
 from .testing import synthetic_cover
 
-__all__ = ["main", "StegoLabApp"]
+__all__ = ["main", "AdaptiveStegoApp"]
 
 _ = i18n.translate
 
@@ -96,7 +96,7 @@ def _format_bytes(n: int) -> str:
 # ---------------------------------------------------------------------------
 # the application
 # ---------------------------------------------------------------------------
-class StegoLabApp:
+class AdaptiveStegoApp:
     """Main window with one tab per task."""
 
     def __init__(self, root, language: str | None = None):
@@ -152,7 +152,7 @@ class StegoLabApp:
         bar = ttk.Frame(self.root, padding=(10, 8, 10, 0))
         bar.pack(fill="x")
 
-        title = ttk.Label(bar, text="stegolab", font=("", 15, "bold"))
+        title = ttk.Label(bar, text="AdaptiveStego", font=("", 15, "bold"))
         title.pack(side="left")
 
         self.language_var = tk.StringVar(value=i18n.get_language())
@@ -909,7 +909,7 @@ class StegoLabApp:
         from .selftest import environment
 
         env = environment()
-        lines = [f"stegolab {__version__}"]
+        lines = [f"adaptivestego {__version__}"]
         lines += [f"{key:<12}{value}" for key, value in env.items()]
         self.about_text.delete("1.0", "end")
         self.about_text.insert("1.0", "\n".join(lines))
@@ -984,7 +984,7 @@ class StegoLabApp:
 
 
 def main(argv=None) -> int:
-    """Entry point for ``python -m stegolab gui``."""
+    """Entry point for ``python -m adaptivestego gui``."""
     try:
         import tkinter as tk
     except ImportError:
@@ -993,7 +993,7 @@ def main(argv=None) -> int:
               "Fedora:        sudo dnf install python3-tkinter\n"
               "Arch:          sudo pacman -S tk\n"
               "The command line interface works without them: "
-              "python -m stegolab --help")
+              "python -m adaptivestego --help")
         return 3
 
     root = tk.Tk()
@@ -1001,7 +1001,7 @@ def main(argv=None) -> int:
         root.call("tk", "scaling", 1.2)
     except tk.TclError:  # pragma: no cover - platform dependent
         pass
-    StegoLabApp(root)
+    AdaptiveStegoApp(root)
     root.mainloop()
     return 0
 

@@ -1,13 +1,13 @@
-"""Command line interface for stegolab.
+"""Command line interface for adaptivestego.
 
-    python -m stegolab gui
-    python -m stegolab embed   -c cover.png -o stego.png -t "secret" --key pw
-    python -m stegolab extract -i stego.png --key pw
-    python -m stegolab capacity -i cover.png --method adaptive
-    python -m stegolab analyze  -i stego.png
-    python -m stegolab metrics  -c cover.png -s stego.png
-    python -m stegolab attack   -i stego.png -o attacked.png --attack jpeg:quality=90
-    python -m stegolab selftest
+    python -m adaptivestego gui
+    python -m adaptivestego embed   -c cover.png -o stego.png -t "secret" --key pw
+    python -m adaptivestego extract -i stego.png --key pw
+    python -m adaptivestego capacity -i cover.png --method adaptive
+    python -m adaptivestego analyze  -i stego.png
+    python -m adaptivestego metrics  -c cover.png -s stego.png
+    python -m adaptivestego attack   -i stego.png -o attacked.png --attack jpeg:quality=90
+    python -m adaptivestego selftest
 """
 
 from __future__ import annotations
@@ -196,10 +196,10 @@ def cmd_gui(_args) -> int:
 # ---------------------------------------------------------------------------
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="stegolab",
+        prog="adaptivestego",
         description="Adaptive image steganography and steganalysis")
     parser.add_argument("--version", action="version",
-                        version=f"stegolab {__version__}")
+                        version=f"adaptivestego {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("gui", help="open the desktop interface")

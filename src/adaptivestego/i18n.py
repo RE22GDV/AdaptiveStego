@@ -22,12 +22,12 @@ DEFAULT_LANGUAGE = "en"
 
 LANGUAGES = {"en": "English", "uk": "Українська", "ru": "Русский"}
 
-_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".stegolab.json")
+_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".adaptivestego.json")
 
 _STRINGS: dict[str, dict[str, str]] = {
     "en": {
         # -- window and tabs ------------------------------------------------
-        "app.title": "stegolab - adaptive image steganography",
+        "app.title": "AdaptiveStego - adaptive image steganography",
         "tab.embed": "Embed",
         "tab.extract": "Extract",
         "tab.analyze": "Analyse",
@@ -138,7 +138,7 @@ _STRINGS: dict[str, dict[str, str]] = {
                       "same payload",
 
         # -- about tab ------------------------------------------------------
-        "about.title": "About stegolab",
+        "about.title": "About AdaptiveStego",
         "about.description": "A research bench for image steganography and "
                              "steganalysis: content-adaptive LSB embedding, "
                              "baseline methods, quality metrics, container "
@@ -157,7 +157,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
 
     "uk": {
-        "app.title": "stegolab - адаптивна стеганографія зображень",
+        "app.title": "AdaptiveStego - адаптивна стеганографія зображень",
         "tab.embed": "Вбудувати",
         "tab.extract": "Витягти",
         "tab.analyze": "Аналіз",
@@ -263,7 +263,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "bench.hint": "Менше значення SPA означає, що повідомлення важче "
                       "виявити за того самого навантаження",
 
-        "about.title": "Про stegolab",
+        "about.title": "Про AdaptiveStego",
         "about.description": "Дослідницький стенд зі стеганографії та "
                              "стегоаналізу зображень: контентно-адаптивне "
                              "вбудовування в молодші біти, базові методи, "
@@ -283,7 +283,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
 
     "ru": {
-        "app.title": "stegolab - адаптивная стеганография изображений",
+        "app.title": "AdaptiveStego - адаптивная стеганография изображений",
         "tab.embed": "Встроить",
         "tab.extract": "Извлечь",
         "tab.analyze": "Анализ",
@@ -389,7 +389,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "bench.hint": "Меньшее значение SPA означает, что сообщение труднее "
                       "обнаружить при той же нагрузке",
 
-        "about.title": "О программе stegolab",
+        "about.title": "О программе AdaptiveStego",
         "about.description": "Исследовательский стенд по стеганографии и "
                              "стегоанализу изображений: контентно-адаптивное "
                              "встраивание в младшие биты, базовые методы, "

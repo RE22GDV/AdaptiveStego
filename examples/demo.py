@@ -21,9 +21,9 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "src"))
 
-import stegolab as sl  # noqa: E402
-from stegolab import analysis, metrics  # noqa: E402
-from stegolab.testing import synthetic_cover  # noqa: E402
+import adaptivestego as sl  # noqa: E402
+from adaptivestego import analysis, metrics  # noqa: E402
+from adaptivestego.testing import synthetic_cover  # noqa: E402
 
 METHODS = ["sequential", "random", "matching", "edge", "adaptive",
            "adaptive-matching"]

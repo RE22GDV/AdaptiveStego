@@ -37,7 +37,7 @@ jobs:
         run: pytest -q
 
       - name: Verify cross-platform determinism
-        run: python -m stegolab selftest
+        run: python -m adaptivestego selftest
 
   lint:
     runs-on: ubuntu-latest

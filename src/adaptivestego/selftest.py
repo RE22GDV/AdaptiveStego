@@ -6,7 +6,7 @@ the order would diverge and messages would stop decoding. Everything on that
 path is therefore integer arithmetic - but "should be deterministic" is worth
 very little without a way to check it.
 
-Run ``python -m stegolab selftest`` on two machines and compare the digest.
+Run ``python -m adaptivestego selftest`` on two machines and compare the digest.
 Identical digests mean the two installations are interoperable.
 """
 
@@ -34,10 +34,10 @@ DIGEST_VERSION = 2
 # Digest produced by a correct build. It is a property of the algorithms, not
 # of the machine: any difference means the two installations would not be able
 # to exchange stego images.
-EXPECTED_DIGEST = "9da54d9043661ba33118b191a883939d26dfc6509ed1582aa716251037c2a5b7"
+EXPECTED_DIGEST = "e9bdd51a26f7d5a9395135fa91869964ad72975be9b64108e33922c99c8959bc"
 
-_KEY = "stegolab-selftest"
-_MESSAGE = "stegolab determinism vector 0123456789"
+_KEY = "adaptivestego-selftest"
+_MESSAGE = "adaptivestego determinism vector 0123456789"
 
 
 def _hash(*arrays: np.ndarray) -> str:
@@ -78,7 +78,7 @@ def overall_digest(components: dict[str, str] | None = None) -> str:
     """Single digest that summarises every component."""
     components = components or component_digests()
     digest = hashlib.sha256()
-    digest.update(f"stegolab/selftest/v{DIGEST_VERSION}".encode())
+    digest.update(f"adaptivestego/selftest/v{DIGEST_VERSION}".encode())
     for name in sorted(components):
         digest.update(name.encode())
         digest.update(components[name].encode())

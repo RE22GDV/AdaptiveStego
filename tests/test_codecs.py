@@ -3,12 +3,12 @@
 import numpy as np
 from conftest import raises, skip
 
-import stegolab as sl
-from stegolab import core, crypto, ecc
-from stegolab.codecs import EmbedParams, get_codec
-from stegolab.exceptions import CapacityError, ContainerError, CryptoError
-from stegolab.maps import MAP_KINDS, complexity_map, mask_low_bits
-from stegolab.testing import synthetic_cover
+import adaptivestego as sl
+from adaptivestego import core, crypto, ecc
+from adaptivestego.codecs import EmbedParams, get_codec
+from adaptivestego.exceptions import CapacityError, ContainerError, CryptoError
+from adaptivestego.maps import MAP_KINDS, complexity_map, mask_low_bits
+from adaptivestego.testing import synthetic_cover
 
 METHODS = sl.codec_names()
 MESSAGE = "Привет! Cyrillic, ASCII and 🙂 in a single message."
@@ -185,7 +185,7 @@ def test_sequential_unlike_adaptive_writes_into_flat_areas():
 
 
 def test_adaptive_beats_sequential_on_ssim():
-    from stegolab import metrics
+    from adaptivestego import metrics
 
     img = cover(h=128, w=128)
     message = MESSAGE * 8

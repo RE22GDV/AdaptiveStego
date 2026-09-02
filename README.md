@@ -1,6 +1,6 @@
-# stegolab
+# AdaptiveStego
 
-[![tests](https://github.com/RE22GDV/stegolab/actions/workflows/ci.yml/badge.svg)](https://github.com/RE22GDV/stegolab/actions/workflows/ci.yml)
+[![tests](https://github.com/RE22GDV/AdaptiveStego/actions/workflows/ci.yml/badge.svg)](https://github.com/RE22GDV/AdaptiveStego/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#installation)
@@ -46,12 +46,12 @@ changes.
 Python 3.10 or newer, on Windows, macOS or Linux.
 
 ```bash
-git clone https://github.com/RE22GDV/stegolab.git
-cd stegolab
+git clone https://github.com/RE22GDV/AdaptiveStego.git
+cd AdaptiveStego
 pip install -r requirements.txt
 ```
 
-Or install the package itself, which also puts `stegolab` and `stegolab-gui` on
+Or install the package itself, which also puts `adaptivestego` and `adaptivestego-gui` on
 your PATH:
 
 ```bash
@@ -77,7 +77,7 @@ Verify the installation, including that it produces bit-identical results to the
 reference build:
 
 ```bash
-python -m stegolab selftest
+python -m adaptivestego selftest
 ```
 
 ## Usage
@@ -85,7 +85,7 @@ python -m stegolab selftest
 ### Desktop interface
 
 ```bash
-python -m stegolab gui
+python -m adaptivestego gui
 ```
 
 ![the embed tab](docs/figures/gui-embed.png)
@@ -109,21 +109,21 @@ The same panel in each of the three languages:
 
 ```bash
 # hide a message, encrypted, with error correction
-python -m stegolab embed -c cover.png -o stego.png -t "meet at 17:40" \
+python -m adaptivestego embed -c cover.png -o stego.png -t "meet at 17:40" \
     --method adaptive --key my-key --password --ecc 16
 
 # recover it
-python -m stegolab extract -i stego.png --method adaptive --key my-key --password
+python -m adaptivestego extract -i stego.png --method adaptive --key my-key --password
 
 # how much would fit
-python -m stegolab capacity -i cover.png --method adaptive
+python -m adaptivestego capacity -i cover.png --method adaptive
 
 # is there anything in this image?
-python -m stegolab analyze -i suspect.png
+python -m adaptivestego analyze -i suspect.png
 
 # quality of a cover/stego pair, and attacks on a container
-python -m stegolab metrics -c cover.png -s stego.png
-python -m stegolab attack -i stego.png -o attacked.png --attack jpeg:quality=90
+python -m adaptivestego metrics -c cover.png -s stego.png
+python -m adaptivestego attack -i stego.png -o attacked.png --attack jpeg:quality=90
 ```
 
 Passwords are never taken from the command line by default: `--password` without
@@ -133,7 +133,7 @@ so it does not end up in the process list or the shell history.
 ### Python API
 
 ```python
-import stegolab as sl
+import adaptivestego as sl
 
 cover = sl.read_image("cover.png")
 result = sl.embed(cover, "secret", method="adaptive", key="my-key",
@@ -158,7 +158,7 @@ flowchart LR
     MSG["message"] --> U8["UTF-8"]
     U8 --> ZLIB["zlib<br/>(only if it helps)"]
     ZLIB --> AES["AES-256-GCM<br/>key from scrypt"]
-    AES --> HDR["SGL1 header<br/>magic, flags, CRC32"]
+    AES --> HDR["ASG1 header<br/>magic, flags, CRC32"]
     HDR --> RS["Reed-Solomon"]
     RS --> BITS["bit stream"]
 
@@ -333,12 +333,12 @@ the sender's exactly. "It should be deterministic" is not worth much without a
 way to check, so:
 
 ```bash
-$ python -m stegolab selftest
+$ python -m adaptivestego selftest
 python 3.12.10  numpy 2.1.2  opencv 4.13.0
 platform Windows-11-10.0.26200-SP0 (AMD64)
 methods checked: sequential, random, matching, edge, adaptive, adaptive-matching
-digest   9da54d9043661ba33118b191a883939d26dfc6509ed1582aa716251037c2a5b7
-expected 9da54d9043661ba33118b191a883939d26dfc6509ed1582aa716251037c2a5b7
+digest   e9bdd51a26f7d5a9395135fa91869964ad72975be9b64108e33922c99c8959bc
+expected e9bdd51a26f7d5a9395135fa91869964ad72975be9b64108e33922c99c8959bc
 OK: this installation is interoperable with the reference build
 ```
 
@@ -372,9 +372,9 @@ The full threat model is in [docs/limitations.md](docs/limitations.md).
 ## Project layout
 
 ```
-src/stegolab/
+src/adaptivestego/
   api.py          embed / extract / capacity
-  container.py    the SGL1 format: header, flags, checksums
+  container.py    the ASG1 format: header, flags, checksums
   crypto.py       scrypt + AES-256-GCM
   ecc.py          Reed-Solomon
   core.py         writing and reading bits at given positions
@@ -401,7 +401,7 @@ pip install -r requirements-dev.txt
 pytest -q                    # the test suite
 python tests/run_tests.py    # the same suite without pytest
 ruff check src tests experiments examples
-python -m stegolab selftest
+python -m adaptivestego selftest
 ```
 
 CI runs the suite on Windows, macOS and Linux for Python 3.10 and 3.12, plus a

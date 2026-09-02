@@ -25,8 +25,8 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "src"))
 
-import stegolab as sl  # noqa: E402
-from stegolab.testing import synthetic_cover  # noqa: E402
+import adaptivestego as sl  # noqa: E402
+from adaptivestego.testing import synthetic_cover  # noqa: E402
 
 DEFAULT_SIZES = [256, 512, 1024, 2048]
 DEFAULT_METHODS = ["sequential", "random", "matching", "edge", "adaptive",
@@ -119,7 +119,7 @@ def main(argv=None) -> int:
         "platform": platform.platform(),
         "processor": platform.processor(),
         "machine": platform.machine(),
-        "stegolab": sl.__version__,
+        "adaptivestego": sl.__version__,
     }
     with open(f"{args.out}.meta.json", "w", encoding="utf-8") as f:
         json.dump({"environment": environment, "argv": sys.argv[1:]}, f,

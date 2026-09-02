@@ -52,7 +52,7 @@ S-UNIWARD work, and it is the next major step for this bench (see
 * LSB replacement (`replace`) is vulnerable to SPA and RS analysis regardless of
   the order of positions. `matching` (+/-1) is free of those attacks but not of
   modern neural detectors.
-* The classical detectors in `stegolab.analysis` are a weak baseline. A claim
+* The classical detectors in `adaptivestego.analysis` are a weak baseline. A claim
   that a method is "less detectable" only holds against an SRNet-class detector
   trained on the same images and the same payload.
 * Capacity and detectability are linked: methods may only be compared at an
@@ -71,14 +71,14 @@ S-UNIWARD work, and it is the next major step for this bench (see
 ## Reproducibility limits
 
 * The order of positions depends on the complexity map, so every map
-  computation is integer arithmetic (see `src/stegolab/maps.py`). The one place
+  computation is integer arithmetic (see `src/adaptivestego/maps.py`). The one place
   that could involve floating point - the entropy table - is computed with the
   `decimal` module and rounded to integers, which is identical on every
   platform.
 * The keyed generator is built on the raw Philox stream and a permutation
   implemented here, because `numpy.random.Generator` methods are explicitly
   allowed to change between releases.
-* `python -m stegolab selftest` prints a digest of every deterministic
+* `python -m adaptivestego selftest` prints a digest of every deterministic
   component. Two machines that print the same digest can exchange stego images.
 * Images must be stored in a lossless format. `write_image` refuses to write
   JPEG and verifies the written file byte by byte.
