@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stegolab"
+version = "0.3.0"
+description = "Research bench for adaptive image steganography and steganalysis: content-adaptive LSB embedding, metrics, attacks and a desktop UI"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["steganography", "steganalysis", "lsb", "adaptive-embedding",
+            "image-processing", "reproducible-research"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: X11 Applications",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = [
+    "numpy>=1.24",
+    "opencv-python>=4.8",
+]
+
+[project.optional-dependencies]
+crypto = ["cryptography>=42.0"]
+ecc = ["reedsolo>=1.7"]
+experiments = ["pandas>=2.0", "matplotlib>=3.7", "scipy>=1.10"]
+dev = ["pytest>=7.4", "ruff>=0.5"]
+all = [
+    "cryptography>=42.0",
+    "reedsolo>=1.7",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "scipy>=1.10",
+    "pytest>=7.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/RE22GDV/stegolab"
+Documentation = "https://github.com/RE22GDV/stegolab/tree/main/docs"
+Issues = "https://github.com/RE22GDV/stegolab/issues"
+
+[project.scripts]
+stegolab = "stegolab.cli:main"
+
+[project.gui-scripts]
+stegolab-gui = "stegolab.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.ruff]
+line-length = 92
+target-version = "py310"
+extend-exclude = ["legacy"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+"experiments/*" = ["E402"]
+"examples/*" = ["E402"]

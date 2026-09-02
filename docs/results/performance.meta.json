@@ -1,0 +1,21 @@
+{
+  "environment": {
+    "python": "3.12.10",
+    "numpy": "2.1.2",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "machine": "AMD64",
+    "stegolab": "0.3.0"
+  },
+  "argv": [
+    "--sizes",
+    "256",
+    "512",
+    "1024",
+    "2048",
+    "--repeats",
+    "3",
+    "--out",
+    "results/performance"
+  ]
+}

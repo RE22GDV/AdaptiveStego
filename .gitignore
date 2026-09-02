@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# experiment output and datasets (only at the repository root:
+# docs/results/ holds the committed summaries)
+/results/
+/data/
+/runs/
+*.ckpt
+*.pt
+
+# images produced by examples/demo.py
+examples/*.png
+
+# The original script this project grew out of, archived in legacy/.
+/decoder.py

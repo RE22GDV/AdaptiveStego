@@ -1,0 +1,11 @@
+{
+  "images": ["data/bossbase/*.pgm"],
+  "grayscale": true,
+  "limit": 1000,
+  "methods": ["sequential", "random", "matching", "edge", "adaptive", "adaptive-matching"],
+  "payloads": [0.05, 0.1, 0.2, 0.4],
+  "attacks": ["identity"],
+  "seeds": 3,
+  "key": "bossbase-protocol-v1",
+  "out": "results/bossbase"
+}

@@ -1,0 +1,7 @@
+attack,adaptive,adaptive-matching,edge,matching,random,sequential
+brightness:delta=1,0.0,0.0,0.0,0.0,0.0,0.0
+drop:p=0.001,0.0,0.0,0.0,0.0,0.0,0.0
+identity,1.0,1.0,1.0,1.0,1.0,1.0
+jpeg:quality=95,0.0,0.0,0.0,0.0,0.0,0.0
+noise:sigma=1,0.0,0.0,0.0,0.0,0.0,0.0
+salt_pepper:p=0.001,0.0,0.0,0.0,0.0,0.0,0.0

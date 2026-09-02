@@ -1,0 +1,19 @@
+# Runtime requirements for stegolab.
+#   pip install -r requirements.txt
+#
+# The first two lines are all that the library needs. The rest unlock optional
+# features and are safe to remove.
+
+numpy>=1.24
+opencv-python>=4.8
+
+# Encryption of the payload (--password / the Password field in the UI).
+cryptography>=42.0
+
+# Reed-Solomon error correction (--ecc).
+reedsolo>=1.7
+
+# Experiment scripts in experiments/ (tables, plots, chi-square p-values).
+pandas>=2.0
+matplotlib>=3.7
+scipy>=1.10

@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "stegolab: a research bench for adaptive image steganography and steganalysis"
+message: "If you use this software in your research, please cite it."
+type: software
+# Replace the entity below with your full name and ORCID before publishing.
+authors:
+  - name: "RE22GDV"
+    alias: "RE22GDV"
+version: 0.3.0
+date-released: "2026-09-02"
+license: MIT
+repository-code: "https://github.com/RE22GDV/stegolab"
+abstract: >-
+  stegolab implements content-adaptive least-significant-bit steganography in
+  which the order of embedding positions is derived from an integer complexity
+  map of the cover image, so that the receiver reconstructs it without any side
+  information. It ships five baseline methods for comparison, an authenticated
+  container format, quality and detectability metrics, twelve container attacks,
+  classical steganalysis, and a multilingual desktop interface.
+keywords:
+  - steganography
+  - steganalysis
+  - adaptive embedding
+  - least significant bit
+  - reproducible research

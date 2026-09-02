@@ -1,0 +1,11 @@
+method,attack,0,8,16,32
+adaptive,drop:p=0.0002,0.0,0.0,0.0,0.0
+adaptive,drop:p=0.0005,0.0,0.0,0.0,0.0
+adaptive,drop:p=0.001,0.0,0.0,0.0,0.0
+adaptive,identity,1.0,1.0,1.0,1.0
+adaptive,salt_pepper:p=0.0002,0.0,0.0,0.0,0.0
+random,drop:p=0.0002,0.3333333333333333,1.0,1.0,1.0
+random,drop:p=0.0005,0.0,1.0,1.0,1.0
+random,drop:p=0.001,0.0,1.0,1.0,1.0
+random,identity,1.0,1.0,1.0,1.0
+random,salt_pepper:p=0.0002,0.3333333333333333,1.0,1.0,1.0
