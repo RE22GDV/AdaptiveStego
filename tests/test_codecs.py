@@ -10,7 +10,10 @@ from adaptivestego.exceptions import CapacityError, ContainerError, CryptoError
 from adaptivestego.maps import MAP_KINDS, complexity_map, mask_low_bits
 from adaptivestego.testing import synthetic_cover
 
-METHODS = sl.codec_names()
+# Syndrome coding has no self-describing container, so the tests that go
+# through the container format cover the ordering codecs only.
+METHODS = [name for name in sl.codec_names()
+           if not sl.get_codec(name).syndrome_coded]
 MESSAGE = "Привет! Cyrillic, ASCII and 🙂 in a single message."
 
 

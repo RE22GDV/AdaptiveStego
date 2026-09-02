@@ -19,10 +19,10 @@ import sys
 import numpy as np
 
 from . import container
-from .api import embed, extract
+from .api import embed, embed_raw, extract, extract_raw
 from .codecs import EmbedParams, codec_names, get_codec
 from .maps import MAP_KINDS, complexity_map
-from .prng import keyed_permutation
+from .prng import deterministic_bits, keyed_permutation
 from .testing import synthetic_cover
 
 __all__ = ["DIGEST_VERSION", "EXPECTED_DIGEST", "component_digests",
@@ -34,10 +34,11 @@ DIGEST_VERSION = 2
 # Digest produced by a correct build. It is a property of the algorithms, not
 # of the machine: any difference means the two installations would not be able
 # to exchange stego images.
-EXPECTED_DIGEST = "e9bdd51a26f7d5a9395135fa91869964ad72975be9b64108e33922c99c8959bc"
+EXPECTED_DIGEST = "63f7a5cc7f006dde9bf500675083d81dadc3e86109d0236a1b80177e9b229293"
 
 _KEY = "adaptivestego-selftest"
 _MESSAGE = "adaptivestego determinism vector 0123456789"
+_RAW_BITS = 4096
 
 
 def _hash(*arrays: np.ndarray) -> str:
@@ -69,9 +70,16 @@ def component_digests() -> dict[str, str]:
         container.pack(_MESSAGE, compress=True)).hexdigest()
 
     for name in codec_names():
-        res = embed(cover, _MESSAGE, method=name, key=_KEY)
-        out[f"stego/{name}"] = _hash(res.stego)
+        out[f"stego/{name}"] = _hash(_stego_for(cover, name))
     return out
+
+
+def _stego_for(cover: np.ndarray, name: str) -> np.ndarray:
+    """One stego image per method, using whichever payload form it supports."""
+    if get_codec(name).syndrome_coded:
+        payload = deterministic_bits(_KEY, "selftest/payload", _RAW_BITS)
+        return embed_raw(cover, payload, method=name, key=_KEY).stego
+    return embed(cover, _MESSAGE, method=name, key=_KEY).stego
 
 
 def overall_digest(components: dict[str, str] | None = None) -> str:
@@ -105,9 +113,16 @@ def run_selftest(verbose: bool = True) -> dict:
     cover = synthetic_cover(128, 128, seed=17)
     for name in codec_names():
         try:
-            res = embed(cover, _MESSAGE, method=name, key=_KEY)
-            if extract(res.stego, method=name, key=_KEY) != _MESSAGE:
-                problems.append(f"{name}: round-trip returned a different message")
+            if get_codec(name).syndrome_coded:
+                payload = deterministic_bits(_KEY, "selftest/payload", _RAW_BITS)
+                stego = embed_raw(cover, payload, method=name, key=_KEY).stego
+                recovered = extract_raw(stego, _RAW_BITS, method=name, key=_KEY)
+                if not np.array_equal(recovered, payload):
+                    problems.append(f"{name}: round-trip returned different bits")
+            else:
+                res = embed(cover, _MESSAGE, method=name, key=_KEY)
+                if extract(res.stego, method=name, key=_KEY) != _MESSAGE:
+                    problems.append(f"{name}: round-trip returned a different message")
         except Exception as exc:                      # noqa: BLE001 - reported
             problems.append(f"{name}: {type(exc).__name__}: {exc}")
 

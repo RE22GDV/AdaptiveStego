@@ -26,11 +26,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "src"))
 
 import adaptivestego as sl  # noqa: E402
+from adaptivestego.prng import deterministic_bits  # noqa: E402
 from adaptivestego.testing import synthetic_cover  # noqa: E402
 
 DEFAULT_SIZES = [256, 512, 1024, 2048]
 DEFAULT_METHODS = ["sequential", "random", "matching", "edge", "adaptive",
-                   "adaptive-matching"]
+                   "adaptive-matching", "stc"]
 
 
 def timeit(fn, repeats: int) -> tuple[float, float]:
@@ -47,17 +48,19 @@ def measure(method: str, size: int, bpp: float, repeats: int) -> dict:
     """Measure one (method, size) combination."""
     img = synthetic_cover(size, size, seed=1)
     n_pixels = size * size
-    n_bytes = max(int(n_pixels * bpp / 8) - 64, 1)
-    message = bytes(np.random.default_rng(0).integers(0, 256, n_bytes,
-                                                      dtype=np.uint8))
+
+    # Raw payloads: the same amount of data for every method, and syndrome
+    # coding has no container to use.
+    payload = deterministic_bits("perf", f"payload/{size}/{bpp}",
+                                 sl.payload_bits_for_bpp(img, bpp))
 
     def do_embed():
-        return sl.embed(img, message, method=method, key="perf", compress=False)
+        return sl.embed_raw(img, payload, method=method, key="perf")
 
     stego = do_embed().stego
 
     def do_extract():
-        return sl.extract(stego, method=method, key="perf", as_text=False)
+        return sl.extract_raw(stego, payload.size, method=method, key="perf")
 
     embed_best, embed_median = timeit(do_embed, repeats)
     extract_best, extract_median = timeit(do_extract, repeats)
@@ -73,14 +76,14 @@ def measure(method: str, size: int, bpp: float, repeats: int) -> dict:
         "size": size,
         "megapixels": megapixels,
         "bpp": bpp,
-        "message_bytes": n_bytes,
+        "payload_bits": int(payload.size),
         "embed_best_ms": embed_best * 1000.0,
         "embed_median_ms": embed_median * 1000.0,
         "extract_best_ms": extract_best * 1000.0,
         "extract_median_ms": extract_median * 1000.0,
         "embed_mpx_per_s": megapixels / embed_best,
         "extract_mpx_per_s": megapixels / extract_best,
-        "throughput_kb_per_s": (n_bytes / 1024.0) / embed_best,
+        "throughput_kb_per_s": (payload.size / 8 / 1024.0) / embed_best,
         "peak_memory_mb": peak / (1024.0 * 1024.0),
         "memory_per_megapixel_mb": peak / (1024.0 * 1024.0) / megapixels,
     }

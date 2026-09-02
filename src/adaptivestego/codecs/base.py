@@ -28,6 +28,8 @@ class EmbedParams:
     mode: str | None = None     # None means the codec default
     channels: tuple[int, ...] | None = None  # None means every channel
     map_mask_bits: int | None = None  # None means the required minimum
+    stc_height: int = 8         # trellis height for syndrome coding
+    cost_gamma: float = 1.0     # sharpens the cost preference for texture
 
     def with_(self, **kw) -> EmbedParams:
         """Return a copy with some fields replaced."""
@@ -47,6 +49,7 @@ class Codec:
     default_mode = "replace"
     uses_key = False
     adaptive = False
+    syndrome_coded = False      # True when the payload length must be known
 
     # -- to be overridden -------------------------------------------------
     def order(self, img: np.ndarray, params: EmbedParams,

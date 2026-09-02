@@ -23,8 +23,8 @@ import traceback
 import numpy as np
 
 from . import analysis, i18n, metrics
-from .api import capacity, embed, extract
-from .codecs import codec_names
+from .api import capacity, embed, embed_raw, extract, extract_raw, payload_bits_for_bpp
+from .codecs import codec_names, get_codec
 from .exceptions import StegoError
 from .image_io import LOSSLESS_EXT, read_image, write_image
 from .maps import MAP_KINDS
@@ -48,6 +48,15 @@ LOSSLESS_FILETYPES = [
 TEXT_FILETYPES = [("Text files", "*.txt"), ("All files", "*.*")]
 
 PREVIEW_SIDE = 170
+
+
+def container_methods() -> list[str]:
+    """Methods that can be used with the self-describing container.
+
+    Syndrome coding needs the payload length in advance, so it has no header
+    to discover and only appears in the benchmark, which sets the length.
+    """
+    return [name for name in codec_names() if not get_codec(name).syndrome_coded]
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +224,8 @@ class AdaptiveStegoApp:
 
         rows = [
             ("common.method", ttk.Combobox(box, textvariable=state["method"],
-                                           values=codec_names(), state="readonly",
-                                           width=20)),
+                                           values=container_methods(),
+                                           state="readonly", width=20)),
             ("common.key", ttk.Entry(box, textvariable=state["key"], width=22)),
             ("common.password", ttk.Entry(box, textvariable=state["password"],
                                           width=22, show="*")),
@@ -635,7 +644,7 @@ class AdaptiveStegoApp:
             img = read_image(path)
             report = analysis.quick_report(img)
             caps = {name: capacity(img, method=name)["message_bytes_max"]
-                    for name in codec_names()}
+                    for name in container_methods()}
             quality = None
             if cover_path and os.path.isfile(cover_path):
                 cover = read_image(cover_path)
@@ -800,25 +809,29 @@ class AdaptiveStegoApp:
         self.progress.configure(maximum=total, value=0)
 
         def work():
+            # Raw payloads, exactly bpp x pixels bits, so the container header
+            # does not become part of what is being compared, and so syndrome
+            # coding can take part at all.
+            from .prng import deterministic_bits
+
             rows = []
             done = 0
-            for _name, img in images:
-                n_pixels = img.shape[0] * img.shape[1]
+            for name, img in images:
                 for bpp in payloads:
-                    n_bytes = max(int(n_pixels * bpp / 8) - 64, 1)
-                    message = bytes(np.random.default_rng(0).integers(
-                        0, 256, n_bytes, dtype=np.uint8))
+                    n_bits = payload_bits_for_bpp(img, bpp)
+                    payload = deterministic_bits(f"gui/{name}/{bpp}", "payload",
+                                                 n_bits)
                     for method in methods:
                         if self._bench_stop.is_set():
                             return {"rows": rows, "cancelled": True}
                         start = time.perf_counter()
-                        result = embed(img, message, method=method,
-                                       key="benchmark", compress=False)
+                        result = embed_raw(img, payload, method=method,
+                                           key="benchmark")
                         elapsed = (time.perf_counter() - start) * 1000.0
                         try:
-                            recovered = extract(result.stego, method=method,
-                                                key="benchmark",
-                                                as_text=False) == message
+                            recovered = np.array_equal(
+                                extract_raw(result.stego, n_bits, method=method,
+                                            key="benchmark"), payload)
                         except Exception:             # noqa: BLE001
                             recovered = False
                         rows.append({

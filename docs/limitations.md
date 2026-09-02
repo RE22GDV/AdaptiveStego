@@ -24,7 +24,7 @@ weak noise. The test suite asserts this explicitly
 | Processing | Result |
 |---|---|
 | PNG/BMP left untouched | the message is recovered in full |
-| a few corrupted samples | repaired by `--ecc 8` and above, but only for the non-adaptive methods |
+| a few corrupted samples | repaired by `--ecc 8` and above, but only for the non-adaptive methods; the combination of syndrome coding and ECC is not measured yet |
 | Gaussian noise with sigma >= 0.3 | the message is lost |
 | JPEG at any quality | the message is lost |
 | rescaling, rotation, cropping | the message is lost |
@@ -39,11 +39,14 @@ subsequent bit shifts and nothing decodes - even when only one bit was actually
 damaged. Raising `map_mask_bits` (building the map from higher bits) does not
 help; that was measured, not assumed.
 
-**The right fix is syndrome coding** - wet paper codes and syndrome-trellis
-codes (STC) - where the message is recovered from a syndrome over all positions
-and does not depend on which samples were modified. That is how WOW and
-S-UNIWARD work, and it is the next major step for this bench (see
-[roadmap.md](roadmap.md)).
+**Syndrome coding removes that particular failure mode.** The `stc` method
+recovers the message as a syndrome over all positions in raster order, so no
+ranking has to be reproduced and a damaged sample no longer displaces the rest
+of the stream. It is *not* an error-correcting code: the syndrome still changes
+under an attack, so bits are still lost. What changes is that the damage
+becomes bounded and local, which is the kind an error-correcting code can
+repair - whether it actually does has not been measured yet. See
+[syndrome-coding.md](syndrome-coding.md).
 
 ## Detectability limits
 

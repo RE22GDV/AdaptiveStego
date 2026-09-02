@@ -36,22 +36,25 @@ STC and its verification, then a cost pipeline comparable with WOW and
 S-UNIWARD, then a smoke run on 100-200 BOSSBase images, then freezing the
 protocol, then the full dataset, and only then training a detector on it.
 
-* [ ] **Syndrome coding (STC).** The main technical item. STC removes the
-      decoder's dependence on the adaptive ranking and enables minimum-distortion
-      embedding: the cost map exists only on the encoder side, the message is
-      read as a syndrome over a fixed raster order, and a damaged sample no
-      longer shifts the whole stream. STC is not itself an error-correcting
-      code - after an attack the syndrome still changes, so robustness to local
-      corruption comes from ECC on top and has to be measured experimentally.
-* [ ] Turn the priority map into per-sample costs. STC needs a cost for each
-      direction - rho+ for +1 and rho- for -1 - with the direction forbidden at
-      0 and at 255 given wet cost. The order of samples becomes a fixed raster
-      order, and the cost map is used by the encoder only.
-* [ ] Verify the STC implementation, not just its round-trip: the syndrome must
-      satisfy H y = m, and on short vectors (n <= 20) exhaustive search must
-      confirm that the solution really is of minimum cost. Also test the 0 and
-      255 boundaries, several trellis heights, embedding efficiency and the
-      achieved total distortion.
+* [x] **Syndrome coding (STC).** Implemented in `stc.py` and exposed as the
+      `stc` method. The cost map exists only on the encoder side, the message
+      is the syndrome over a fixed raster order, and the decoder needs nothing
+      but the dimensions, the key and the trellis height. It is not an
+      error-correcting code: after an attack the syndrome still changes, so
+      robustness comes from ECC on top and remains to be measured.
+* [x] Per-direction costs in `costs.py`: rho+ and rho- from the complexity map,
+      with the forbidden direction at 0 and 255 given wet cost and ties in
+      direction broken by a keyed coin.
+* [x] Verification beyond round-trip: the syndrome constraint is checked
+      directly, linearity of H is checked, and on vectors short enough to
+      enumerate the trellis result is compared against brute force over all
+      2^n candidates - with and without wet samples. Boundary values, several
+      trellis heights, embedding efficiency and the achieved distortion all
+      have their own tests.
+* [ ] Measure whether ECC on top of syndrome coding restores the message after
+      localised damage. This is the open question the previous item raises.
+* [ ] Let syndrome coding carry the application container by transmitting the
+      payload length separately (today `stc` is research mode only).
 * [ ] A WOW / S-UNIWARD style cost function and a comparison against them at an
       equal payload (Binghamton DDE Lab implementations).
 * [ ] SRNet as the detector: trained on cover/stego pairs, reported as accuracy,

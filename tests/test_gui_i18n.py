@@ -133,3 +133,14 @@ def test_params_state_is_translated_for_channels():
     finally:
         root.destroy()
         i18n.set_language("en")
+
+
+def test_container_methods_exclude_syndrome_coding():
+    """The embed tab writes a container, which syndrome coding cannot use."""
+    from adaptivestego.codecs import get_codec
+    from adaptivestego.gui import container_methods
+
+    names = container_methods()
+    assert "stc" not in names
+    assert "adaptive" in names
+    assert all(not get_codec(name).syndrome_coded for name in names)

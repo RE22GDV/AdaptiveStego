@@ -61,6 +61,10 @@ def _add_embed_params(parser: argparse.ArgumentParser) -> None:
                         help="build the map from bits above this position (ablation)")
     parser.add_argument("--mode", default=None, choices=("replace", "match"),
                         help="override how a bit is written")
+    parser.add_argument("--stc-height", type=int, default=8, dest="stc_height",
+                        help="trellis height for syndrome coding (default: 8)")
+    parser.add_argument("--cost-gamma", type=float, default=1.0, dest="cost_gamma",
+                        help="how sharply syndrome coding prefers texture")
     parser.add_argument("--channels", default=None,
                         help="comma separated channels, e.g. 2 or 0,2 (default: all)")
     parser.add_argument("--grayscale", action="store_true",
@@ -83,6 +87,8 @@ def _params_from_args(args) -> dict:
         kwargs["mode"] = args.mode
     if args.map_mask_bits is not None:
         kwargs["map_mask_bits"] = args.map_mask_bits
+    kwargs["stc_height"] = args.stc_height
+    kwargs["cost_gamma"] = args.cost_gamma
     if args.channels:
         kwargs["channels"] = tuple(int(c) for c in args.channels.split(","))
     return kwargs

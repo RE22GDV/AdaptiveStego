@@ -55,7 +55,7 @@ from adaptivestego.prng import deterministic_bits, deterministic_bytes  # noqa: 
 from adaptivestego.testing import synthetic_cover  # noqa: E402
 
 DEFAULT_METHODS = ["sequential", "random", "matching", "edge", "adaptive",
-                   "adaptive-matching"]
+                   "adaptive-matching", "stc"]
 DEFAULT_PAYLOADS = [0.05, 0.1, 0.2, 0.4]
 DEFAULT_ATTACKS = ["identity", "noise:sigma=1", "jpeg:quality=95",
                    "brightness:delta=1", "drop:p=0.001"]

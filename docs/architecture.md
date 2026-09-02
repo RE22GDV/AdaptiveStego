@@ -21,9 +21,10 @@ flowchart TB
     end
 
     subgraph placement["Placement"]
-        CODECS["codecs/<br/>6 methods"]
+        CODECS["codecs/<br/>7 methods"]
         MAPS["maps.py<br/>integer complexity maps"]
         PRNG["prng.py<br/>keyed Philox order"]
+        STC["stc.py + costs.py<br/>syndrome coding"]
     end
 
     subgraph engine["Engine"]
@@ -50,6 +51,8 @@ flowchart TB
     CONT --> ECC
     CODECS --> MAPS
     CODECS --> PRNG
+    CODECS --> STC
+    STC --> MAPS
     CODECS --> CORE
 ```
 
@@ -119,6 +122,7 @@ produce only the first N positions:
 | `sequential` | `arange(n)` | `arange(N)` |
 | `random`, `matching` | stable argsort of n keyed labels | partition to the N smallest labels, then sort those |
 | `edge`, `adaptive`, `adaptive-matching` | lexsort by (band, label) | histogram of the bands finds the cut-off band; everything above it is taken whole and only the boundary band is ranked |
+| `stc` | raster order, nothing is ranked | the costs decide which samples change, not an order |
 
 Both shortcuts return exactly the prefix of the full ordering, ties included -
 the test suite checks that for every codec and every limit, and the determinism
@@ -134,3 +138,13 @@ digest is unchanged by the optimisation.
 | `core.py` | knows nothing about images or maps, only bits and positions |
 | `image_io.py` | refuses lossy formats and re-reads what it wrote |
 | `codecs/` | a codec is only an ordering rule; the writing loop is shared |
+| `stc.py` | knows nothing about images: bits, costs and a parity check matrix |
+| `costs.py` | reads the complexity map as a cost, with wet costs at 0 and 255 |
+
+## Syndrome coding
+
+`stc` does not fit the "ordered positions" shape at all: the samples stay in
+raster order and the message is the syndrome of the whole bit vector. That
+removes the decoder's dependence on the cost map, which in turn lets the map be
+built from the untouched cover. It is described in
+[syndrome-coding.md](syndrome-coding.md).

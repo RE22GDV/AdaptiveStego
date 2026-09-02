@@ -6,9 +6,10 @@
 [![platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#installation)
 
 A research bench for image steganography and steganalysis: content-adaptive LSB
-embedding, five baseline methods to compare it against, quality metrics, twelve
-attacks on the container, classical detectors, and a desktop interface in
-English, Ukrainian and Russian.
+embedding, minimum-distortion embedding through syndrome-trellis coding, five
+baseline methods to compare them against, quality metrics, twelve attacks on
+the container, classical detectors, and a desktop interface in English,
+Ukrainian and Russian.
 
 **The hypothesis this project exists to test.** Choosing which samples and which
 colour channels carry the message according to the local textural complexity of
@@ -32,6 +33,7 @@ changes.
 - [Usage](#usage) - [desktop](#desktop-interface), [command line](#command-line), [Python](#python-api)
 - [How it works](#how-it-works)
 - [Methods](#embedding-methods)
+- [Syndrome coding](docs/syndrome-coding.md)
 - [Experimental results](#experimental-results)
 - [Performance](#performance)
 - [Reproducibility](#reproducibility)
@@ -212,10 +214,18 @@ Full diagrams, including extraction and the lazy ordering, are in
 | `edge` | Sobel gradient | LSB replacement | classic edge-adaptive LSB |
 | `adaptive` | combined complexity map | LSB replacement | the proposed method |
 | `adaptive-matching` | combined complexity map | +/-1 | the proposed method with +/-1 |
+| `stc` | none - raster order | +/-1 | syndrome coding: minimum distortion for the payload |
 
 The combined map sums the normalised Sobel gradient, local variance, local
 entropy, a high-pass response and the spread between colour channels, then
 weights the channels by how visible a change is in each.
+
+`stc` is different in kind from the other six. It does not rank anything: the
+message is the syndrome of the whole stego bit vector under a keyed parity
+check matrix, and the encoder searches the trellis for the cheapest vector that
+satisfies it. The decoder therefore needs no cost map at all - which also means
+the map may be built from the untouched cover at full precision. See
+[docs/syndrome-coding.md](docs/syndrome-coding.md).
 
 ## Experimental results
 
@@ -271,6 +281,7 @@ over covers.
 | edge | 0.0111 | 0.0128 | 0.0184 | 0.0403 [0.0377, 0.0428] | 59.89 dB | 0.99940 |
 | adaptive-matching | 0.0099 | 0.0116 | 0.0184 | **0.0324 [0.0292, 0.0354]** | 59.89 dB | 0.99940 |
 | matching | 0.0027 | 0.0026 | 0.0024 | 0.0028 [0.0013, 0.0044] | 59.90 dB | 0.99920 |
+| stc | 0.0029 | 0.0032 | 0.0036 | 0.0034 [0.0018, 0.0052] | **63.86 dB** | 0.99970 |
 
 Paired against random LSB on the same covers, at 0.4 bpp:
 
@@ -279,6 +290,7 @@ Paired against random LSB on the same covers, at 0.4 bpp:
 | adaptive | -0.0730 [-0.0751, -0.0710] | 0.42x | 12 of 12 covers |
 | edge | -0.0851 [-0.0868, -0.0832] | 0.32x | 12 of 12 covers |
 | adaptive-matching | -0.0931 [-0.0951, -0.0910] | 0.26x | 12 of 12 covers |
+| stc | -0.1220 [-0.1245, -0.1197] | 0.02x | 12 of 12 covers |
 | sequential | +0.0041 [+0.0030, +0.0054] | 1.03x | 0 of 12 covers |
 
 Three things worth stating plainly:
@@ -290,10 +302,34 @@ Three things worth stating plainly:
   *worse* than random there (+0.0011, interval excluding zero) and `edge` is
   indistinguishable from it. With so few changes the estimator is near its own
   noise floor, and concentrating those few changes buys nothing.
-* `matching` sits at the cover baseline for a structural reason, not a good
-  one: SPA is built on the value pairs that LSB replacement creates, so it is
-  not designed to detect +/-1 embedding at all. That number says nothing about
-  how hard `matching` is to detect with a modern detector.
+* `matching` and `stc` sit at the cover baseline for a structural reason, not a
+  good one: SPA is built on the value pairs that LSB replacement creates, so it
+  is not designed to detect +/-1 embedding at all. **Their SPA numbers are not
+  evidence of undetectability** and must not be read as such; that question
+  needs a detector that works against +/-1, which is what SRNet is for.
+
+### What syndrome coding actually buys
+
+The defensible claim for `stc` is about distortion, not detectability, and it
+is large. At 0.4 bpp, with the same payload in the same images:
+
+| Method | Samples changed | Payload bits per change | PSNR | Embed time |
+|---|---|---|---|---|
+| stc | **2.67 %** | **4.99** | **63.86 dB** | 1.06 s |
+| adaptive | 6.66 % | 2.00 | 59.90 dB | 0.021 s |
+| random | 6.66 % | 2.00 | 59.90 dB | 0.006 s |
+| sequential | 6.67 % | 2.00 | 59.89 dB | 0.0003 s |
+
+Ordered placement flips a bit whenever the cover bit disagrees with the message
+bit, which is half the time, so it is stuck at 2 payload bits per change. The
+trellis search instead picks, among all bit vectors with the right syndrome,
+the one whose changes are cheapest - 2.5x fewer changes and nearly 4 dB of
+PSNR, at about fifty times the embedding cost. Extraction stays cheap, since it
+is only a syndrome computation.
+
+The implementation is verified against brute force: for vectors short enough to
+enumerate, all 2^n candidates are searched and the trellis result must match
+the true minimum exactly, with and without unusable samples.
 
 ### Ablation: which complexity map matters
 
@@ -352,14 +388,23 @@ Measured on Windows 11, Python 3.12, single core, 0.2 bpp payload
 
 | Method | 0.07 Mpx | 0.26 Mpx | 1.0 Mpx | 4.2 Mpx | Peak memory @1 Mpx |
 |---|---|---|---|---|---|
-| sequential | 0.1 ms | 0.3 ms | 1.7 ms | 12 ms | 6 MB |
-| random | 4.9 ms | 22 ms | 94 ms | 463 ms | 72 MB |
-| matching | 5.4 ms | 23 ms | 100 ms | 487 ms | 72 MB |
-| edge | 10 ms | 41 ms | 240 ms | 1099 ms | 107 MB |
-| adaptive | 21 ms | 119 ms | 751 ms | 3506 ms | 107 MB |
+| sequential | 0 ms | 1 ms | 2 ms | 12 ms | 6 MB |
+| random | 5 ms | 25 ms | 105 ms | 452 ms | 72 MB |
+| matching | 6 ms | 26 ms | 113 ms | 482 ms | 72 MB |
+| edge | 10 ms | 48 ms | 291 ms | 1.1 s | 107 MB |
+| adaptive | 23 ms | 125 ms | 886 ms | 3.7 s | 107 MB |
+| adaptive-matching | 24 ms | 141 ms | 957 ms | 3.6 s | 107 MB |
+| stc | 985 ms | 4.2 s | 17.7 s | 65.1 s | 249 MB |
 
-Extraction costs about the same as embedding. A one megapixel photograph is
-handled in well under a second even by the most expensive method.
+Extraction costs about the same as embedding for the ordering codecs. Syndrome
+coding is the exception in both directions: embedding runs a Viterbi pass over
+2^height states and is roughly fifty times slower, while extraction is only a
+syndrome computation and is *faster* than the adaptive codecs - 0.6 s against
+0.9 s at one megapixel. Its memory grows with the trellis: 249 MB at one
+megapixel, 1.0 GB at four.
+
+Syndrome coding does not order anything, so the shortcut below does not apply
+to it; its cost is the trellis search itself.
 
 **The ordering is built lazily.** A message almost never fills an image, so
 ordering every sample of a photograph to write a few kilobytes is wasted work.
@@ -370,10 +415,10 @@ every codec and every limit.
 
 | At 1 Mpx | Before | After | Speed-up |
 |---|---|---|---|
-| adaptive, embed | 6548 ms | 751 ms | 8.7x |
-| adaptive, extract | 3267 ms | 760 ms | 4.3x |
-| random, embed | 1974 ms | 94 ms | 21x |
-| random, extract | 947 ms | 111 ms | 8.5x |
+| adaptive, embed | 6548 ms | 886 ms | 7.4x |
+| adaptive, extract | 3267 ms | 891 ms | 3.7x |
+| random, embed | 1974 ms | 105 ms | 19x |
+| random, extract | 947 ms | 106 ms | 8.9x |
 
 The determinism digest is unchanged by the optimisation, which is the strongest
 statement available that the output is byte for byte identical.
@@ -433,8 +478,10 @@ src/adaptivestego/
   ecc.py          Reed-Solomon
   core.py         writing and reading bits at given positions
   maps.py         integer complexity maps
+  costs.py        the same maps read as per-direction embedding costs
+  stc.py          syndrome-trellis coding, exact minimum-distortion search
   prng.py         deterministic keyed ordering
-  codecs/         the six methods behind one registry
+  codecs/         the seven methods behind one registry
   metrics.py      PSNR, SSIM, BER, embedding efficiency
   attacks.py      twelve container distortions
   analysis.py     chi-square, SPA, bit-plane statistics
@@ -443,8 +490,8 @@ src/adaptivestego/
   i18n.py         English, Ukrainian, Russian
   cli.py          command line interface
 experiments/      benchmark, report, performance, figures
-docs/             format, architecture, limitations, protocol, roadmap
-tests/            78 tests plus a runner that works without pytest
+docs/             format, architecture, syndrome coding, limitations, protocol
+tests/            111 tests plus a runner that works without pytest
 legacy/           the original decoder.py this project grew out of
 ```
 

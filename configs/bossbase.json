@@ -1,11 +1,28 @@
 {
-  "images": ["data/bossbase/*.pgm"],
+  "images": [
+    "data/bossbase/*.pgm"
+  ],
   "grayscale": true,
   "limit": 200,
   "mode": "research",
-  "methods": ["sequential", "random", "matching", "edge", "adaptive", "adaptive-matching"],
-  "payloads": [0.05, 0.1, 0.2, 0.4],
-  "attacks": ["identity"],
+  "methods": [
+    "sequential",
+    "random",
+    "matching",
+    "edge",
+    "adaptive",
+    "adaptive-matching",
+    "stc"
+  ],
+  "payloads": [
+    0.05,
+    0.1,
+    0.2,
+    0.4
+  ],
+  "attacks": [
+    "identity"
+  ],
   "seeds": 3,
   "master_key": "bossbase-smoke-v1",
   "out": "results/bossbase-smoke"

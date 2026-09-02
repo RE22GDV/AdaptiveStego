@@ -20,8 +20,11 @@ sys.path.insert(0, HERE)
 
 from conftest import Skipped  # noqa: E402 - imported after sys.path setup
 
-MODULES = ["test_container", "test_codecs", "test_metrics_attacks",
-           "test_io_cli", "test_gui_i18n"]
+# Discovered rather than listed, so a new test file cannot be forgotten here.
+MODULES = sorted(
+    name[:-3] for name in os.listdir(HERE)
+    if name.startswith("test_") and name.endswith(".py")
+)
 
 
 def main(argv: list[str]) -> int:
@@ -55,7 +58,7 @@ def main(argv: list[str]) -> int:
         print(f"\n{'=' * 70}\nFAIL {full}\n{'-' * 70}\n{tb}")
 
     print(f"\n{passed} passed, {failed} failed, {skipped} skipped "
-          f"за {time.time() - t0:.1f} с")
+          f"in {time.time() - t0:.1f} s")
     return 1 if failed else 0
 
 

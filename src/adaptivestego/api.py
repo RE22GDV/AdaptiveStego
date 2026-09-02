@@ -10,7 +10,7 @@ import numpy as np
 from . import container, core
 from .bitio import bits_to_bytes, bytes_to_bits
 from .codecs import EmbedParams, get_codec
-from .exceptions import CapacityError, ContainerError
+from .exceptions import CapacityError, ContainerError, StegoError
 from .image_io import read_image, write_image
 
 __all__ = ["EmbedResult", "capacity", "embed", "extract",
@@ -18,7 +18,7 @@ __all__ = ["EmbedResult", "capacity", "embed", "extract",
            "payload_bits_for_bpp"]
 
 _PARAM_KEYS = ("bits_per_sample", "key", "map_kind", "band_bits", "mode",
-               "channels", "map_mask_bits")
+               "channels", "map_mask_bits", "stc_height", "cost_gamma")
 
 # Positions are computed in chunks; the first chunk must comfortably cover the
 # container header so that a short message needs a single pass.
@@ -62,6 +62,21 @@ def _prepare(img: np.ndarray, method: str, kw: dict):
     return codec, params, codec.candidate_count(img, params)
 
 
+def _refuse_container(codec) -> None:
+    """Syndrome coding cannot be read progressively, so it has no container.
+
+    The ASG1 header is discovered by reading a prefix of the payload, but a
+    syndrome is only defined once the whole payload length is known. Rather
+    than silently producing something undecodable, say so.
+    """
+    if getattr(codec, "syndrome_coded", False):
+        raise StegoError(
+            f"method {codec.name!r} uses syndrome coding, which needs the "
+            f"payload length in advance and therefore has no self-describing "
+            f"container. Use embed_raw/extract_raw, or --mode research in the "
+            f"experiment scripts.")
+
+
 def capacity(img: np.ndarray, method: str = "adaptive", *, password=None,
              ecc_nsym: int = 0, **kw) -> dict:
     """Report how much data the given method can hide in this image."""
@@ -90,6 +105,7 @@ def embed(img: np.ndarray, message, *, method: str = "adaptive", key=None,
           **kw) -> EmbedResult:
     """Hide a message inside a uint8 image array."""
     codec, params, n_samples = _prepare(img, method, dict(kw, key=key))
+    _refuse_container(codec)
     blob = container.pack(message, password=password, compress=compress,
                           ecc_nsym=ecc_nsym)
     bits = bytes_to_bits(blob)
@@ -178,6 +194,7 @@ def extract(img: np.ndarray, *, method: str = "adaptive", key=None,
     short message in a large image never orders the whole image.
     """
     codec, params, n_samples = _prepare(img, method, dict(kw, key=key))
+    _refuse_container(codec)
     state: dict = {"off": 0, "limit": 0, "positions": None}
 
     def positions_for(samples: int) -> np.ndarray:
