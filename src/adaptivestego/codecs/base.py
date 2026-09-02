@@ -30,6 +30,7 @@ class EmbedParams:
     map_mask_bits: int | None = None  # None means the required minimum
     stc_height: int = 8         # trellis height for syndrome coding
     cost_gamma: float = 1.0     # sharpens the cost preference for texture
+    cost_model: str | None = None   # None means the codec's own model
 
     def with_(self, **kw) -> EmbedParams:
         """Return a copy with some fields replaced."""

@@ -214,18 +214,26 @@ Full diagrams, including extraction and the lazy ordering, are in
 | `edge` | Sobel gradient | LSB replacement | classic edge-adaptive LSB |
 | `adaptive` | combined complexity map | LSB replacement | the proposed method |
 | `adaptive-matching` | combined complexity map | +/-1 | the proposed method with +/-1 |
-| `stc` | none - raster order | +/-1 | syndrome coding: minimum distortion for the payload |
+| `stc` | none - raster order | +/-1 | syndrome coding with this project's cost model |
+| `wow` | none - raster order | +/-1 | syndrome coding with the WOW cost model |
+| `uniward` | none - raster order | +/-1 | syndrome coding with the S-UNIWARD cost model |
 
 The combined map sums the normalised Sobel gradient, local variance, local
 entropy, a high-pass response and the spread between colour channels, then
 weights the channels by how visible a change is in each.
 
-`stc` is different in kind from the other six. It does not rank anything: the
+The last three are different in kind from the other six. It does not rank anything: the
 message is the syndrome of the whole stego bit vector under a keyed parity
 check matrix, and the encoder searches the trellis for the cheapest vector that
 satisfies it. The decoder therefore needs no cost map at all - which also means
 the map may be built from the untouched cover at full precision. See
 [docs/syndrome-coding.md](docs/syndrome-coding.md).
+
+They share one coder and differ only in the cost model, which is what makes
+them comparable: `wow` and `uniward` are ports of the reference implementations
+published by the Binghamton DDE Lab, validated against that MATLAB code to
+1e-15 and kept honest afterwards by committed reference vectors
+(see [matlab/README.md](matlab/README.md)).
 
 ## Experimental results
 
@@ -281,7 +289,9 @@ over covers.
 | edge | 0.0111 | 0.0128 | 0.0184 | 0.0403 [0.0377, 0.0428] | 59.89 dB | 0.99940 |
 | adaptive-matching | 0.0099 | 0.0116 | 0.0184 | **0.0324 [0.0292, 0.0354]** | 59.89 dB | 0.99940 |
 | matching | 0.0027 | 0.0026 | 0.0024 | 0.0028 [0.0013, 0.0044] | 59.90 dB | 0.99920 |
-| stc | 0.0029 | 0.0032 | 0.0036 | 0.0034 [0.0018, 0.0052] | **63.86 dB** | 0.99970 |
+| stc | 0.0029 | 0.0032 | 0.0036 | 0.0034 [0.0018, 0.0052] | 63.86 dB | 0.99970 |
+| wow | 0.0028 | 0.0029 | 0.0031 | 0.0030 [0.0015, 0.0047] | 64.24 dB | 0.99970 |
+| uniward | 0.0027 | 0.0028 | 0.0030 | 0.0029 [0.0014, 0.0045] | **64.58 dB** | 0.99970 |
 
 Paired against random LSB on the same covers, at 0.4 bpp:
 
@@ -302,11 +312,36 @@ Three things worth stating plainly:
   *worse* than random there (+0.0011, interval excluding zero) and `edge` is
   indistinguishable from it. With so few changes the estimator is near its own
   noise floor, and concentrating those few changes buys nothing.
-* `matching` and `stc` sit at the cover baseline for a structural reason, not a
-  good one: SPA is built on the value pairs that LSB replacement creates, so it
+* `matching` and the three syndrome-coded methods sit at the cover baseline for
+  a structural reason, not a good one: SPA is built on the value pairs that LSB replacement creates, so it
   is not designed to detect +/-1 embedding at all. **Their SPA numbers are not
   evidence of undetectability** and must not be read as such; that question
   needs a detector that works against +/-1, which is what SRNet is for.
+
+### Cost models compared with the coder held fixed
+
+`stc`, `wow` and `uniward` run the same syndrome coder over the same covers
+with the same payloads. The only difference is which cost model decides what a
+change is worth, so the comparison is about the cost model alone.
+
+| Payload bits per change | 0.05 bpp | 0.1 bpp | 0.2 bpp | 0.4 bpp |
+|---|---|---|---|---|
+| S-UNIWARD | **7.82** | **7.31** | **6.66** | **5.88** |
+| WOW | 6.67 | 6.36 | 5.99 | 5.44 |
+| this project | 5.99 | 5.71 | 5.38 | 4.99 |
+
+**Our cost model comes third of three.** At 0.4 bpp S-UNIWARD needs 2.27 % of
+the samples where ours needs 2.67 %, and its PSNR is 0.7 dB higher. That is the
+honest state of the work: the complexity map was designed to *rank* samples for
+the ordering codecs, not as a distortion cost, and its floor and gamma have
+never been fitted. Two caveats in the other direction: these are synthetic
+covers, and ours is the cheapest of the three to compute (1.6 s against 2.0 s
+for WOW at one megapixel).
+
+Nothing here says anything about detectability. All three are +/-1 methods, so
+SPA cannot see them, and the question of which cost model actually hides better
+needs a detector that can - which is what the SRNet work in the
+[roadmap](docs/roadmap.md) is for.
 
 ### What syndrome coding actually buys
 
@@ -315,10 +350,12 @@ is large. At 0.4 bpp, with the same payload in the same images:
 
 | Method | Samples changed | Payload bits per change | PSNR | Embed time |
 |---|---|---|---|---|
-| stc | **2.67 %** | **4.99** | **63.86 dB** | 1.06 s |
-| adaptive | 6.66 % | 2.00 | 59.90 dB | 0.021 s |
-| random | 6.66 % | 2.00 | 59.90 dB | 0.006 s |
-| sequential | 6.67 % | 2.00 | 59.89 dB | 0.0003 s |
+| uniward | **2.27 %** | **5.88** | **64.58 dB** | 1.48 s |
+| wow | 2.45 % | 5.44 | 64.24 dB | 2.03 s |
+| stc | 2.67 % | 4.99 | 63.86 dB | 1.56 s |
+| adaptive | 6.66 % | 2.00 | 59.90 dB | 0.029 s |
+| random | 6.66 % | 2.00 | 59.90 dB | 0.007 s |
+| sequential | 6.67 % | 2.00 | 59.89 dB | 0.0005 s |
 
 Ordered placement flips a bit whenever the cover bit disagrees with the message
 bit, which is half the time, so it is stuck at 2 payload bits per change. The

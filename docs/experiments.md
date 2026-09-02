@@ -49,7 +49,15 @@ python experiments/report.py results/bossbase-full.csv
 python experiments/ablation.py --synthetic 12 --seeds 3 --out results
 python experiments/performance.py --out results/performance
 python experiments/figures.py
+
+# validate the ported cost models against MATLAB (once, see matlab/README.md)
+python experiments/make_cost_vectors.py
+matlab -batch "run('matlab/dump_reference_costs.m')"
+python experiments/validate_costs.py
 ```
+
+Images are processed in parallel with `--jobs N` (`0` uses every core), and the
+steganalysis of a cover is computed once per image rather than once per case.
 
 Every run writes `*.csv` (raw rows) and `*.meta.json` (the full command line,
 the library version, the master key, the mode and the seeds). `report.py` adds
@@ -102,8 +110,13 @@ to several replicates of a few covers.
 4. **The protocol is frozen before the final runs.** The methods, payloads,
    metrics and data split do not change after results are seen.
 5. **Baselines are mandatory.** `sequential` and `random` are the lower bound,
-   `matching` the honest competitor, `uniform` the ablation control. A
-   publication also needs WOW and S-UNIWARD (Binghamton DDE Lab).
+   `matching` the honest competitor, `uniform` the ablation control, and `wow`
+   and `uniward` the published references. The last two share the syndrome
+   coder with `stc`, so a comparison against them varies the cost model and
+   nothing else.
+6. **Hold the coder fixed.** Comparing an ordering codec against a
+   syndrome-coded one changes two things at once. The scientific comparison is
+   `stc` against `wow` against `uniward`; the ordering codecs are baselines.
 
 ## Datasets
 

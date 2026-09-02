@@ -55,8 +55,14 @@ protocol, then the full dataset, and only then training a detector on it.
       localised damage. This is the open question the previous item raises.
 * [ ] Let syndrome coding carry the application container by transmitting the
       payload length separately (today `stc` is research mode only).
-* [ ] A WOW / S-UNIWARD style cost function and a comparison against them at an
-      equal payload (Binghamton DDE Lab implementations).
+* [x] WOW and S-UNIWARD ported and registered as methods, sharing the same
+      syndrome coder so that only the cost model differs. Validated against the
+      Binghamton DDE Lab MATLAB code and pinned by committed reference vectors.
+* [ ] Improve our own cost model: it currently comes third of the three on
+      distortion, which is unsurprising since the complexity map was designed
+      to rank samples rather than to price them. The floor and gamma have never
+      been fitted, and fitting them must happen on data that is not the data
+      the result is reported on.
 * [ ] SRNet as the detector: trained on cover/stego pairs, reported as accuracy,
       ROC-AUC and P_E. An RTX 4090 is enough for BOSSBase.
 * [ ] Runs on BOSSBase 1.01 and ALASKA#2 with splits by image and by camera.

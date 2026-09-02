@@ -21,7 +21,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import stc
-from ..costs import binary_costs, embedding_costs, preferred_direction
+from ..cost_models import binary_costs, costs_for, preferred_direction
 from .base import Codec, EmbedParams
 
 
@@ -33,6 +33,7 @@ class StcLSB(Codec):
     uses_key = True
     adaptive = True
     syndrome_coded = True          # the payload length cannot be discovered
+    cost_model = "complexity"      # overridden by the subclasses below
 
     def order(self, img: np.ndarray, params: EmbedParams,
               limit: int | None = None) -> np.ndarray:
@@ -46,12 +47,15 @@ class StcLSB(Codec):
                 "syndrome coding writes one bit per sample; "
                 "bits_per_sample must be 1")
 
+    def cost_model_name(self, params: EmbedParams) -> str:
+        """The parameter wins, so one codec can be run with any cost model."""
+        return params.cost_model or self.cost_model
+
     def _costs(self, img: np.ndarray, params: EmbedParams,
                candidates: np.ndarray):
-        up, down = embedding_costs(img, map_kind=params.map_kind,
-                                   gamma=params.cost_gamma)
-        flat_up, flat_down = up.reshape(-1)[candidates], down.reshape(-1)[candidates]
-        return flat_up, flat_down
+        up, down = costs_for(img, self.cost_model_name(params),
+                             map_kind=params.map_kind, gamma=params.cost_gamma)
+        return up.reshape(-1)[candidates], down.reshape(-1)[candidates]
 
     def embed(self, img: np.ndarray, bits: np.ndarray,
               params: EmbedParams) -> np.ndarray:
@@ -83,3 +87,22 @@ class StcLSB(Codec):
         cover_bits = (img.reshape(-1)[candidates] & 1).astype(np.uint8)
         return stc.extract(cover_bits, int(n_bits), height=params.stc_height,
                            key=params.key)
+
+
+class WowSTC(StcLSB):
+    """WOW: directional wavelet costs, carried by syndrome coding.
+
+    In the literature "WOW" names the cost function; the coder underneath is
+    always syndrome coding, which is what makes a comparison against it fair -
+    only the cost model differs.
+    """
+
+    name = "wow"
+    cost_model = "wow"
+
+
+class UniwardSTC(StcLSB):
+    """S-UNIWARD: universal wavelet relative distortion, same coder."""
+
+    name = "uniward"
+    cost_model = "uniward"

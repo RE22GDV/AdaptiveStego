@@ -11,7 +11,9 @@
     "edge",
     "adaptive",
     "adaptive-matching",
-    "stc"
+    "stc",
+    "wow",
+    "uniward"
   ],
   "payloads": [
     0.05,
@@ -24,5 +26,6 @@
   ],
   "seeds": 1,
   "master_key": "bossbase-full-v1",
-  "out": "results/bossbase-full"
+  "out": "results/bossbase-full",
+  "jobs": 0
 }

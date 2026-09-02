@@ -21,6 +21,7 @@ import sys
 from . import __version__, analysis, attacks, metrics
 from .api import capacity, embed, extract
 from .codecs import codec_names
+from .cost_models import cost_model_names
 from .exceptions import StegoError
 from .image_io import read_image, write_image
 from .maps import MAP_KINDS
@@ -65,6 +66,9 @@ def _add_embed_params(parser: argparse.ArgumentParser) -> None:
                         help="trellis height for syndrome coding (default: 8)")
     parser.add_argument("--cost-gamma", type=float, default=1.0, dest="cost_gamma",
                         help="how sharply syndrome coding prefers texture")
+    parser.add_argument("--cost-model", default=None, dest="cost_model",
+                        choices=cost_model_names(),
+                        help="override the cost model of a syndrome-coded method")
     parser.add_argument("--channels", default=None,
                         help="comma separated channels, e.g. 2 or 0,2 (default: all)")
     parser.add_argument("--grayscale", action="store_true",
@@ -89,6 +93,8 @@ def _params_from_args(args) -> dict:
         kwargs["map_mask_bits"] = args.map_mask_bits
     kwargs["stc_height"] = args.stc_height
     kwargs["cost_gamma"] = args.cost_gamma
+    if args.cost_model:
+        kwargs["cost_model"] = args.cost_model
     if args.channels:
         kwargs["channels"] = tuple(int(c) for c in args.channels.split(","))
     return kwargs
@@ -178,6 +184,7 @@ def cmd_attack(args) -> int:
 
 def cmd_methods(_args) -> int:
     _dump({"methods": codec_names(), "maps": list(MAP_KINDS),
+           "cost_models": cost_model_names(),
            "attacks": attacks.attack_names()})
     return 0
 

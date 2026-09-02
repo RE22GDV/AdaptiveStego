@@ -7,16 +7,17 @@ from .base import Codec, EmbedParams
 from .lsb_matching import LSBMatching
 from .random_lsb import RandomLSB
 from .sequential_lsb import SequentialLSB
-from .stc_lsb import StcLSB
+from .stc_lsb import StcLSB, UniwardSTC, WowSTC
 
 _CLASSES = (SequentialLSB, RandomLSB, LSBMatching, EdgeAdaptiveLSB,
-            AdaptiveLSB, AdaptiveMatching, StcLSB)
+            AdaptiveLSB, AdaptiveMatching, StcLSB, WowSTC, UniwardSTC)
 
 CODECS = {cls.name: cls for cls in _CLASSES}
 
 __all__ = ["Codec", "EmbedParams", "CODECS", "get_codec", "codec_names",
            "SequentialLSB", "RandomLSB", "LSBMatching", "AdaptiveLSB",
-           "EdgeAdaptiveLSB", "AdaptiveMatching", "StcLSB"]
+           "EdgeAdaptiveLSB", "AdaptiveMatching", "StcLSB", "WowSTC",
+           "UniwardSTC"]
 
 
 def codec_names() -> list[str]:

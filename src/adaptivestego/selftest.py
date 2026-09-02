@@ -18,7 +18,7 @@ import sys
 
 import numpy as np
 
-from . import container
+from . import container, stc
 from .api import embed, embed_raw, extract, extract_raw
 from .codecs import EmbedParams, codec_names, get_codec
 from .maps import MAP_KINDS, complexity_map
@@ -34,7 +34,7 @@ DIGEST_VERSION = 2
 # Digest produced by a correct build. It is a property of the algorithms, not
 # of the machine: any difference means the two installations would not be able
 # to exchange stego images.
-EXPECTED_DIGEST = "63f7a5cc7f006dde9bf500675083d81dadc3e86109d0236a1b80177e9b229293"
+EXPECTED_DIGEST = "429061c46ad7dad344c1d0a92601fe2ec6d656100c4e3f05bcebf6643afb0b95"
 
 _KEY = "adaptivestego-selftest"
 _MESSAGE = "adaptivestego determinism vector 0123456789"
@@ -69,9 +69,31 @@ def component_digests() -> dict[str, str]:
     out["container"] = hashlib.sha256(
         container.pack(_MESSAGE, compress=True)).hexdigest()
 
+    # The decoder side of syndrome coding: the parity matrix and the syndrome
+    # function are what two installations must agree on.
+    bits = deterministic_bits(_KEY, "selftest/vector", 8192)
+    out["stc/parity"] = _hash(stc.parity_columns(8192, 3000, 8, _KEY))
+    out["stc/syndrome"] = _hash(stc.syndrome(bits, 3000, 8, _KEY))
+
     for name in codec_names():
+        if not _deterministic_encoder(name):
+            continue
         out[f"stego/{name}"] = _hash(_stego_for(cover, name))
     return out
+
+
+def _deterministic_encoder(name: str) -> bool:
+    """Whether this method's *output* is expected to be identical everywhere.
+
+    The ordering codecs are integer arithmetic end to end, so their stego
+    images are. The WOW and S-UNIWARD cost models are floating point wavelet
+    convolutions, and a last-bit difference between platforms could change
+    which samples the trellis picks. That is harmless - a syndrome decoder
+    never looks at the costs - but it is not something to assert, so those two
+    are represented here by the decoder side only.
+    """
+    codec = get_codec(name)
+    return getattr(codec, "cost_model", "complexity") == "complexity"
 
 
 def _stego_for(cover: np.ndarray, name: str) -> np.ndarray:

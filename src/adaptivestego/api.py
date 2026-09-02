@@ -18,7 +18,8 @@ __all__ = ["EmbedResult", "capacity", "embed", "extract",
            "payload_bits_for_bpp"]
 
 _PARAM_KEYS = ("bits_per_sample", "key", "map_kind", "band_bits", "mode",
-               "channels", "map_mask_bits", "stc_height", "cost_gamma")
+               "channels", "map_mask_bits", "stc_height", "cost_gamma",
+               "cost_model")
 
 # Positions are computed in chunks; the first chunk must comfortably cover the
 # container header so that a short message needs a single pass.

@@ -12,7 +12,9 @@
     "edge",
     "adaptive",
     "adaptive-matching",
-    "stc"
+    "stc",
+    "wow",
+    "uniward"
   ],
   "payloads": [
     0.05,
@@ -25,5 +27,6 @@
   ],
   "seeds": 3,
   "master_key": "bossbase-smoke-v1",
-  "out": "results/bossbase-smoke"
+  "out": "results/bossbase-smoke",
+  "jobs": 0
 }

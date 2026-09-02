@@ -55,7 +55,7 @@ from adaptivestego.prng import deterministic_bits, deterministic_bytes  # noqa: 
 from adaptivestego.testing import synthetic_cover  # noqa: E402
 
 DEFAULT_METHODS = ["sequential", "random", "matching", "edge", "adaptive",
-                   "adaptive-matching", "stc"]
+                   "adaptive-matching", "stc", "wow", "uniward"]
 DEFAULT_PAYLOADS = [0.05, 0.1, 0.2, 0.4]
 DEFAULT_ATTACKS = ["identity", "noise:sigma=1", "jpeg:quality=95",
                    "brightness:delta=1", "drop:p=0.001"]
@@ -86,11 +86,14 @@ def case_material(cover: np.ndarray, seed: int, master_key: str) -> tuple[str, s
     return case_id.hex()[:16], placement, payload
 
 
-def load_images(args) -> list[tuple[str, np.ndarray]]:
-    """Load the cover images requested on the command line."""
+def image_sources(args) -> list[tuple[str, object]]:
+    """Where the covers come from, without loading them yet.
+
+    Worker processes load their own image, so nothing large has to be pickled
+    and sent across.
+    """
     if args.synthetic:
-        return [(f"synthetic-{i}", synthetic_cover(args.size, args.size, seed=i))
-                for i in range(args.synthetic)]
+        return [(f"synthetic-{i}", (args.size, i)) for i in range(args.synthetic)]
     paths: list[str] = []
     for pattern in args.images:
         paths.extend(sorted(glob.glob(pattern)))
@@ -98,8 +101,7 @@ def load_images(args) -> list[tuple[str, np.ndarray]]:
         raise SystemExit("no image matched the given patterns")
     if args.limit:
         paths = paths[:args.limit]
-    return [(os.path.basename(p), sl.read_image(p, grayscale=args.grayscale))
-            for p in paths]
+    return [(os.path.basename(p), p) for p in paths]
 
 
 def _embed_case(img, bpp, mode, placement_key, payload_key, method, bits,
@@ -126,8 +128,14 @@ def _embed_case(img, bpp, mode, placement_key, payload_key, method, bits,
 
 def run_case(name: str, img: np.ndarray, method: str, bpp: float, seed: int,
              attack_specs: list[str], master_key: str, bits: int, map_kind: str,
-             ecc_nsym: int, mode: str) -> list[dict]:
-    """Embed one payload and measure it under every requested attack."""
+             ecc_nsym: int, mode: str, detect_cover: dict | None = None) -> list[dict]:
+    """Embed one payload and measure it under every requested attack.
+
+    ``detect_cover`` is the steganalysis of the cover. It depends only on the
+    image, so the caller computes it once per image rather than once per case -
+    it costs about as much as an embedding and would otherwise be repeated for
+    every method, payload and replicate.
+    """
     case_id, placement_key, payload_key = case_material(img, seed, master_key)
 
     start = time.perf_counter()
@@ -142,7 +150,8 @@ def run_case(name: str, img: np.ndarray, method: str, bpp: float, seed: int,
     embed_time = time.perf_counter() - start
 
     quality = metrics.quality_report(img, result.stego, result.payload_bits)
-    detect_cover = analysis.quick_report(img)
+    if detect_cover is None:
+        detect_cover = analysis.quick_report(img)
     detect_stego = analysis.quick_report(result.stego)
 
     rows = []
@@ -187,6 +196,30 @@ def run_case(name: str, img: np.ndarray, method: str, bpp: float, seed: int,
     return rows
 
 
+def run_image(name: str, img: np.ndarray, options: dict) -> list[dict]:
+    """Every case for one cover image, sharing one steganalysis of the cover."""
+    detect_cover = analysis.quick_report(img)
+    rows = []
+    for method in options["methods"]:
+        for bpp in options["payloads"]:
+            for seed in range(options["seeds"]):
+                rows.extend(run_case(
+                    name, img, method, bpp, seed, options["attacks"],
+                    options["master_key"], options["bits"], options["map_kind"],
+                    options["ecc_nsym"], options["mode"], detect_cover))
+    return rows
+
+
+def _worker(task):
+    """Entry point for the process pool: load one image and run it."""
+    name, source, options = task
+    if isinstance(source, str):
+        img = sl.read_image(source, grayscale=options["grayscale"])
+    else:
+        img = synthetic_cover(source[0], source[0], seed=source[1])
+    return run_image(name, img, options)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -212,6 +245,8 @@ def main(argv=None) -> int:
     parser.add_argument("--map", dest="map_kind", default="combined")
     parser.add_argument("--ecc", dest="ecc_nsym", type=int, default=0,
                         help="application mode only")
+    parser.add_argument("--jobs", type=int, default=1,
+                        help="processes to run images on; 0 uses every core")
     parser.add_argument("--out", default="results/benchmark",
                         help="prefix of the output files")
 
@@ -229,22 +264,37 @@ def main(argv=None) -> int:
     if args.mode == "research" and args.ecc_nsym:
         parser.error("--ecc applies to the application container, not to raw mode")
 
-    images = load_images(args)
-    total = len(images) * len(args.methods) * len(args.payloads) * args.seeds
-    print(f"images: {len(images)}, configurations: {total}, mode: {args.mode}",
-          file=sys.stderr)
+    sources = image_sources(args)
+    options = {
+        "methods": args.methods, "payloads": args.payloads,
+        "attacks": args.attacks, "seeds": args.seeds,
+        "master_key": args.master_key, "bits": args.bits,
+        "map_kind": args.map_kind, "ecc_nsym": args.ecc_nsym,
+        "mode": args.mode, "grayscale": args.grayscale,
+    }
+    jobs = max(args.jobs or (os.cpu_count() or 1), 1)
+    total = len(sources)
+    print(f"images: {total}, methods: {len(args.methods)}, "
+          f"payloads: {len(args.payloads)}, replicates: {args.seeds}, "
+          f"mode: {args.mode}, jobs: {jobs}", file=sys.stderr)
 
+    tasks = [(name, source, options) for name, source in sources]
     rows: list[dict] = []
     done = 0
-    for name, img in images:
-        for method in args.methods:
-            for bpp in args.payloads:
-                for seed in range(args.seeds):
-                    rows.extend(run_case(name, img, method, bpp, seed, args.attacks,
-                                         args.master_key, args.bits, args.map_kind,
-                                         args.ecc_nsym, args.mode))
-                    done += 1
-                    print(f"\r{done}/{total}", end="", file=sys.stderr, flush=True)
+    if jobs > 1:
+        import multiprocessing
+
+        with multiprocessing.Pool(jobs) as pool:
+            for result in pool.imap_unordered(_worker, tasks):
+                rows.extend(result)
+                done += 1
+                print(f"\r{done}/{total} images", end="", file=sys.stderr,
+                      flush=True)
+    else:
+        for task in tasks:
+            rows.extend(_worker(task))
+            done += 1
+            print(f"\r{done}/{total} images", end="", file=sys.stderr, flush=True)
     print(file=sys.stderr)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
@@ -260,7 +310,7 @@ def main(argv=None) -> int:
                    "payloads": args.payloads, "attacks": args.attacks,
                    "seeds": args.seeds, "master_key": args.master_key,
                    "bits": args.bits, "map": args.map_kind, "ecc": args.ecc_nsym,
-                   "images": len(images),
+                   "images": total, "jobs": jobs,
                    "note": "per-case keys and payloads derive from the cover "
                            "content, the replicate index and the master key"},
                   f, ensure_ascii=False, indent=2)

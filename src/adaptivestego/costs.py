@@ -43,6 +43,10 @@ def embedding_costs(img: np.ndarray, *, map_kind: str = "combined",
         raise ValueError("the cost floor must be positive")
 
     scores = complexity_map(img, map_kind, mask_bits=0).astype(np.float64) / SCALE
+    if img.ndim == 2:
+        # complexity_map always adds a channel axis; the costs must have the
+        # same shape as the image they describe, like the other cost models.
+        scores = scores[:, :, 0]
     cost = 1.0 / np.power(scores + floor, gamma)
 
     up, down = cost.copy(), cost.copy()
