@@ -99,7 +99,11 @@ The interface language is chosen in the top right corner - English, Ukrainian or
 Russian - and the choice is remembered between sessions. Long operations run in
 a worker thread, so the window stays responsive on large images.
 
-![the analyse tab in Ukrainian](docs/figures/gui-analyze.png)
+![the analyse tab](docs/figures/gui-analyze.png)
+
+The same panel in each of the three languages:
+
+![the interface in English, Ukrainian and Russian](docs/figures/gui-languages.png)
 
 ### Command line
 
