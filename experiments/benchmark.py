@@ -126,9 +126,13 @@ def _embed_case(img, bpp, mode, placement_key, payload_key, method, bits,
     return result, payload, result.payload_bits
 
 
+_NO_ANALYSIS = {"chi2_p_max": float("nan"), "spa_rate": float("nan")}
+
+
 def run_case(name: str, img: np.ndarray, method: str, bpp: float, seed: int,
              attack_specs: list[str], master_key: str, bits: int, map_kind: str,
-             ecc_nsym: int, mode: str, detect_cover: dict | None = None) -> list[dict]:
+             ecc_nsym: int, mode: str, detect_cover: dict | None = None,
+             steganalysis: bool = True) -> list[dict]:
     """Embed one payload and measure it under every requested attack.
 
     ``detect_cover`` is the steganalysis of the cover. It depends only on the
@@ -150,9 +154,12 @@ def run_case(name: str, img: np.ndarray, method: str, bpp: float, seed: int,
     embed_time = time.perf_counter() - start
 
     quality = metrics.quality_report(img, result.stego, result.payload_bits)
-    if detect_cover is None:
-        detect_cover = analysis.quick_report(img)
-    detect_stego = analysis.quick_report(result.stego)
+    if steganalysis:
+        if detect_cover is None:
+            detect_cover = analysis.quick_report(img)
+        detect_stego = analysis.quick_report(result.stego)
+    else:
+        detect_cover = detect_stego = _NO_ANALYSIS
 
     rows = []
     for spec in attack_specs:
@@ -198,7 +205,8 @@ def run_case(name: str, img: np.ndarray, method: str, bpp: float, seed: int,
 
 def run_image(name: str, img: np.ndarray, options: dict) -> list[dict]:
     """Every case for one cover image, sharing one steganalysis of the cover."""
-    detect_cover = analysis.quick_report(img)
+    steganalysis = options["steganalysis"]
+    detect_cover = analysis.quick_report(img) if steganalysis else None
     rows = []
     for method in options["methods"]:
         for bpp in options["payloads"]:
@@ -206,7 +214,8 @@ def run_image(name: str, img: np.ndarray, options: dict) -> list[dict]:
                 rows.extend(run_case(
                     name, img, method, bpp, seed, options["attacks"],
                     options["master_key"], options["bits"], options["map_kind"],
-                    options["ecc_nsym"], options["mode"], detect_cover))
+                    options["ecc_nsym"], options["mode"], detect_cover,
+                    steganalysis))
     return rows
 
 
@@ -247,6 +256,10 @@ def main(argv=None) -> int:
     parser.add_argument("--map", dest="map_kind", default="combined")
     parser.add_argument("--ecc", dest="ecc_nsym", type=int, default=0,
                         help="application mode only")
+    parser.add_argument("--no-steganalysis", action="store_true",
+                        dest="no_steganalysis",
+                        help="skip chi-square and SPA; they cost about a quarter "
+                             "of a run and say nothing about the +/-1 methods")
     parser.add_argument("--jobs", type=int, default=1,
                         help="processes to run images on; 0 uses every core")
     parser.add_argument("--out", default="results/benchmark",
@@ -273,6 +286,7 @@ def main(argv=None) -> int:
         "master_key": args.master_key, "bits": args.bits,
         "map_kind": args.map_kind, "ecc_nsym": args.ecc_nsym,
         "mode": args.mode, "grayscale": args.grayscale,
+        "steganalysis": not args.no_steganalysis,
     }
     jobs = max(args.jobs or (os.cpu_count() or 1), 1)
     total = len(sources)
@@ -308,7 +322,8 @@ def main(argv=None) -> int:
     with open(f"{args.out}.meta.json", "w", encoding="utf-8") as f:
         json.dump({"argv": sys.argv[1:], "n_rows": len(rows),
                    "adaptivestego_version": sl.__version__,
-                   "mode": args.mode, "methods": args.methods,
+                   "mode": args.mode, "steganalysis": not args.no_steganalysis,
+                   "methods": args.methods,
                    "payloads": args.payloads, "attacks": args.attacks,
                    "seeds": args.seeds, "master_key": args.master_key,
                    "bits": args.bits, "map": args.map_kind, "ecc": args.ecc_nsym,

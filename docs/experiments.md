@@ -58,6 +58,14 @@ python experiments/validate_costs.py
 
 Images are processed in parallel with `--jobs N` (`0` uses every core), and the
 steganalysis of a cover is computed once per image rather than once per case.
+`--no-steganalysis` drops the chi-square and SPA columns, which cost about a
+quarter of a run and say nothing about the +/-1 methods; the quality and
+recovery columns are unaffected.
+
+Measured on 32 processes, 512x512 grayscale covers, nine methods and four
+payloads: 62 seconds for 32 covers, so roughly 6 minutes for a 200 image smoke
+run and 5.4 hours for all of BOSSBase. The syndrome-coded methods dominate at
+about 15 seconds per cover against 0.2 to 2.8 seconds for the ordering codecs.
 
 Every run writes `*.csv` (raw rows) and `*.meta.json` (the full command line,
 the library version, the master key, the mode and the seeds). `report.py` adds
