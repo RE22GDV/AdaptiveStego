@@ -109,26 +109,43 @@ def test_reference_vectors_are_present():
     assert len(_reference_pairs()) == len(images) * len(REFERENCE_MODELS) * 2
 
 
+def _full_convolution(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    """Full 2D convolution, written out so the test needs no other library."""
+    height, width = image.shape
+    k_rows, k_cols = kernel.shape
+    out = np.zeros((height + k_rows - 1, width + k_cols - 1))
+    for i in range(k_rows):
+        for j in range(k_cols):
+            out[i:i + height, j:j + width] += kernel[i, j] * image
+    return out
+
+
 def test_convolution_uses_the_matlab_alignment():
     """conv2(..., 'same') starts at floor(K/2), one later than most libraries.
 
     The reference filters are 16 by 16 and each cost model convolves twice, so
-    getting this wrong shifts the whole cost map by two pixels - which is what
-    the first comparison against MATLAB actually caught.
+    getting this wrong shifts every cost map by two pixels - which is exactly
+    what the first comparison against MATLAB caught. OpenCV's default anchor
+    and scipy's convolve2d(mode="same") both start one sample earlier, so this
+    is pinned against the full convolution, where there is nothing to choose.
     """
-    from scipy.signal import convolve2d
-
     from adaptivestego.cost_models import _conv2_same, wavelet_filters
 
     image = np.random.default_rng(0).random((40, 40))
     kernel = wavelet_filters()[0]
-    full = convolve2d(image, kernel, mode="full")
-    offset = kernel.shape[0] // 2
+    full = _full_convolution(image, kernel)
+    offset = kernel.shape[0] // 2                 # MATLAB's convention
     expected = full[offset:offset + 40, offset:offset + 40]
 
+    # Away from the border, where zero padding and reflection would differ.
     interior = (slice(20, 30), slice(20, 30))
     assert np.abs(_conv2_same(image, kernel)[interior]
                   - expected[interior]).max() < 1e-12
+
+    # And the convention one earlier, the one that was wrong, must not match.
+    earlier = full[offset - 1:offset - 1 + 40, offset - 1:offset - 1 + 40]
+    assert np.abs(_conv2_same(image, kernel)[interior]
+                  - earlier[interior]).max() > 1e-6
 
 
 # ---------------------------------------------------------------------------
