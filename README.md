@@ -230,10 +230,19 @@ the map may be built from the untouched cover at full precision. See
 [docs/syndrome-coding.md](docs/syndrome-coding.md).
 
 They share one coder and differ only in the cost model, which is what makes
-them comparable: `wow` and `uniward` are ports of the reference implementations
-published by the Binghamton DDE Lab, validated against that MATLAB code to
-1e-15 and kept honest afterwards by committed reference vectors
+them comparable. `wow` and `uniward` are ports of the reference implementations
+published by the Binghamton DDE Lab, and they are checked against that MATLAB
+code rather than assumed correct: on four test images the costs agree to
+**4e-11 or better** wherever a cost is one an embedder would act on, and the
+maps of unusable samples match exactly. The comparison is pinned by committed
+reference vectors, so it re-runs on every commit without MATLAB
 (see [matlab/README.md](matlab/README.md)).
+
+It was worth doing. The first comparison failed by a factor of five: MATLAB's
+`conv2(..., 'same')` starts one sample later than the same call in OpenCV or
+SciPy, and with two convolutions per filter that shifted every cost map by two
+pixels. The two files also disagree on the wet cost - 10^10 in `WOW.m`, 10^8 in
+`S_UNIWARD.m` - which no description of either algorithm mentions.
 
 ## Experimental results
 
@@ -326,17 +335,20 @@ change is worth, so the comparison is about the cost model alone.
 
 | Payload bits per change | 0.05 bpp | 0.1 bpp | 0.2 bpp | 0.4 bpp |
 |---|---|---|---|---|
-| S-UNIWARD | **7.82** | **7.31** | **6.66** | **5.88** |
-| WOW | 6.67 | 6.36 | 5.99 | 5.44 |
+| S-UNIWARD | **7.82** | **7.30** | **6.66** | **5.88** |
+| WOW | 6.69 | 6.35 | 5.99 | 5.45 |
 | this project | 5.99 | 5.71 | 5.38 | 4.99 |
 
-**Our cost model comes third of three.** At 0.4 bpp S-UNIWARD needs 2.27 % of
-the samples where ours needs 2.67 %, and its PSNR is 0.7 dB higher. That is the
-honest state of the work: the complexity map was designed to *rank* samples for
-the ordering codecs, not as a distortion cost, and its floor and gamma have
-never been fitted. Two caveats in the other direction: these are synthetic
-covers, and ours is the cheapest of the three to compute (1.6 s against 2.0 s
-for WOW at one megapixel).
+**Our cost model comes third of three, on both counts.** At 0.4 bpp S-UNIWARD
+needs 2.27 % of the samples where ours needs 2.67 %, and its PSNR is 0.7 dB
+higher. It is also the slowest to compute: 513 ms against 169 ms for WOW and
+149 ms for S-UNIWARD on a one megapixel cover, because it builds five
+sub-maps where they take three convolutions.
+
+That is the honest state of the work. The complexity map was designed to
+*rank* samples for the ordering codecs, not to price them, and its floor and
+gamma have never been fitted. The one caveat in its favour is that these are
+synthetic covers; the ranking may differ on BOSSBase.
 
 Nothing here says anything about detectability. All three are +/-1 methods, so
 SPA cannot see them, and the question of which cost model actually hides better

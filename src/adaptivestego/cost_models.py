@@ -74,13 +74,22 @@ def wavelet_filters() -> list[np.ndarray]:
 def _conv2_same(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """True convolution with MATLAB's ``conv2(..., 'same')`` alignment.
 
-    OpenCV correlates, so the kernel is flipped. For an even-sized kernel the
-    default anchor then lands where MATLAB puts it, which matters here because
-    the filters are 16 by 16 and a one pixel shift would corrupt the whole
-    comparison against the reference implementation.
+    Two details decide whether this matches the reference implementation, and
+    both only bite for even-sized kernels - which these 16 by 16 filters are.
+
+    OpenCV correlates, so the kernel is flipped. The anchor then has to be set
+    explicitly: MATLAB takes the window of the full convolution starting at
+    ``floor(K/2)``, while OpenCV's default anchor - and, for that matter,
+    ``scipy.signal.convolve2d(mode="same")`` - starts one sample earlier. With
+    two convolutions per filter that is a two pixel shift, which is exactly
+    what the comparison against the DDE Lab output caught.
+
+    Zeros outside the image match ``conv2`` as well, though the callers pad
+    generously enough that the retained region never reaches that far.
     """
-    return cv2.filter2D(image, cv2.CV_64F, np.flip(kernel),
-                        borderType=cv2.BORDER_REFLECT)
+    anchor = ((kernel.shape[1] - 1) // 2, (kernel.shape[0] - 1) // 2)
+    return cv2.filter2D(image, cv2.CV_64F, np.flip(kernel), anchor=anchor,
+                        borderType=cv2.BORDER_CONSTANT)
 
 
 def _suitability(cover: np.ndarray, transform) -> np.ndarray:

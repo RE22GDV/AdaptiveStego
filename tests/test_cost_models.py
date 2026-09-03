@@ -20,7 +20,15 @@ from adaptivestego.testing import synthetic_cover
 VECTOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "data", "cost_vectors")
 REFERENCE_MODELS = ("wow", "uniward")
+
+# Costs an embedder would ever act on; typical values are 0.01 to 100.
+USABLE_COST = 1e3
 TOLERANCE = 1e-9
+# Above USABLE_COST the reciprocal Holder norm of WOW amplifies floating point
+# cancellation: in a perfectly flat region the residual is zero up to rounding,
+# so a cost of order 1e9 keeps only a few significant digits and any two
+# implementations disagree there. Those samples are never chosen anyway.
+EXTREME_TOLERANCE = 1e-4
 
 
 def test_wet_costs_match_the_reference_constants():
@@ -79,18 +87,50 @@ def test_ports_match_the_reference_implementation():
             f"{model}/{direction} disagrees about which samples are unusable")
 
         live = ~wet_reference
-        relative = (np.abs(ported[live] - reference[live])
-                    / np.maximum(np.abs(reference[live]), 1e-12))
-        assert relative.max() <= TOLERANCE, (
-            f"{os.path.basename(image_path)}/{model}/{direction}: "
-            f"largest relative difference {relative.max():.3e}")
+        relative = (np.abs(ported - reference)
+                    / np.maximum(np.abs(reference), 1e-12))
+        name = f"{os.path.basename(image_path)}/{model}/{direction}"
+
+        usable = live & (reference <= USABLE_COST)
+        assert usable.any(), f"{name}: no usable costs to compare"
+        assert relative[usable].max() <= TOLERANCE, (
+            f"{name}: usable costs differ by {relative[usable].max():.3e}")
+
+        extreme = live & (reference > USABLE_COST)
+        if extreme.any():
+            assert relative[extreme].max() <= EXTREME_TOLERANCE, (
+                f"{name}: near-infinite costs differ by "
+                f"{relative[extreme].max():.3e}")
 
 
 def test_reference_vectors_are_present():
-    """The images themselves are committed, so the check is reproducible."""
+    """Images and reference maps are committed, so the check is reproducible."""
     assert os.path.isdir(VECTOR_DIR)
     images = [n for n in os.listdir(VECTOR_DIR) if n.endswith(".pgm")]
     assert len(images) >= 4
+    assert len(_reference_pairs()) == len(images) * len(REFERENCE_MODELS) * 2
+
+
+def test_convolution_uses_the_matlab_alignment():
+    """conv2(..., 'same') starts at floor(K/2), one later than most libraries.
+
+    The reference filters are 16 by 16 and each cost model convolves twice, so
+    getting this wrong shifts the whole cost map by two pixels - which is what
+    the first comparison against MATLAB actually caught.
+    """
+    from scipy.signal import convolve2d
+
+    from adaptivestego.cost_models import _conv2_same, wavelet_filters
+
+    image = np.random.default_rng(0).random((40, 40))
+    kernel = wavelet_filters()[0]
+    full = convolve2d(image, kernel, mode="full")
+    offset = kernel.shape[0] // 2
+    expected = full[offset:offset + 40, offset:offset + 40]
+
+    interior = (slice(20, 30), slice(20, 30))
+    assert np.abs(_conv2_same(image, kernel)[interior]
+                  - expected[interior]).max() < 1e-12
 
 
 # ---------------------------------------------------------------------------
