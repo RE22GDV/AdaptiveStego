@@ -40,6 +40,19 @@ with no MATLAB needed.
 
 4. **Dump the reference costs:**
 
+   The driver adapts to whichever signature your copies declare. `WOW.m`
+   usually wants a third argument (`params.p`, the Holder exponent, -1 in the
+   published defaults) and `S_UNIWARD.m` usually takes only two; the driver
+   checks with `nargin` and passes `params` only when the function declares it.
+   If a release asks for a field the driver does not supply, the error names
+   the line, and the field goes into the `models` table near the top of
+   `dump_reference_costs.m`.
+
+   A failure *after* the costs are computed - almost always an STC MEX binary
+   that was never compiled for your platform - is not a problem: the costs are
+   published before any embedding starts, so the driver keeps them and prints a
+   note.
+
    ```bash
    matlab -batch "run('matlab/dump_reference_costs.m')"
    ```

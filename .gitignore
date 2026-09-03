@@ -21,3 +21,11 @@ examples/*.png
 
 # The original script this project grew out of, archived in legacy/.
 /decoder.py
+
+# Reference implementations from the Binghamton DDE Lab. They are downloaded
+# per machine (see matlab/README.md) and are not ours to redistribute.
+matlab/WOW.m
+matlab/S_UNIWARD.m
+matlab/*.mexw64
+matlab/*.mexa64
+matlab/*.mexmaci64

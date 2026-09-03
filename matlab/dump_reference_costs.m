@@ -26,13 +26,15 @@
 %
 % 3. Run this script from the repository root:
 %
-%       cd D:/path/to/AdaptiveStego
-%       run('matlab/dump_reference_costs.m')
+%       matlab -batch "run('matlab/dump_reference_costs.m')"
 %
 % 4. Back in Python:
 %
 %       python experiments/validate_costs.py
 %
+% Note on the embedding stage: the costs are published before any embedding
+% happens, so if the reference function later fails - a missing MEX binary is
+% the usual reason - this script still gets what it came for and says so.
 % ---------------------------------------------------------------------------
 
 clear ref_costs;
@@ -53,7 +55,11 @@ if isempty(images)
           vectorDir);
 end
 
-models  = {'wow', 'uniward'};
+% The reference defaults: p = -1 for WOW, sigma = 1 for S-UNIWARD.
+models = { ...
+    'wow',     'WOW',       struct('p', -1); ...
+    'uniward', 'S_UNIWARD', struct('sigma', 1) ...
+};
 payload = 0.4;      % the value does not affect the costs, only the simulator
 
 fprintf('writing reference costs for %d images\n', numel(images));
@@ -62,38 +68,79 @@ for iImage = 1:numel(images)
     imagePath = fullfile(vectorDir, images(iImage).name);
     [~, stem]  = fileparts(images(iImage).name);
 
-    for iModel = 1:numel(models)
-        model = models{iModel};
+    for iModel = 1:size(models, 1)
+        model      = models{iModel, 1};
+        entry      = models{iModel, 2};
+        params     = models{iModel, 3};
 
-        clear ref_costs;
-        switch model
-            case 'wow'
-                WOW(imagePath, payload);
-            case 'uniward'
-                S_UNIWARD(imagePath, payload);
-        end
+        evalin('base', 'clear ref_costs');
+        callReference(entry, imagePath, payload, params, model);
 
         if evalin('base', 'exist(''ref_costs'', ''var'')') ~= 1
             error(['%s did not publish its costs. Add the assignin line ' ...
-                   'described in the header of this file.'], model);
+                   'described in the header of this file.'], entry);
         end
         costs = evalin('base', 'ref_costs');
         rhoP1 = costs{1};
         rhoM1 = costs{2};
 
-        % Row-major float64, so numpy can read it with a plain fromfile.
         writeMatrix(fullfile(vectorDir, sprintf('%s.%s.up.f64', stem, model)), ...
                     rhoP1);
         writeMatrix(fullfile(vectorDir, sprintf('%s.%s.down.f64', stem, model)), ...
                     rhoM1);
 
+        live = rhoP1(rhoP1 < 1e10);
         fprintf('  %-10s %-8s %dx%d  range [%.6g, %.6g]\n', stem, model, ...
-                size(rhoP1, 1), size(rhoP1, 2), ...
-                min(rhoP1(:)), max(rhoP1(rhoP1 < 1e10)));
+                size(rhoP1, 1), size(rhoP1, 2), min(live), max(live));
     end
 end
 
 fprintf('done. Now run: python experiments/validate_costs.py\n');
+
+
+function callReference(entry, imagePath, payload, params, model)
+    % Call the reference implementation, adapting to its signature.
+    %
+    % Different releases declare either (cover, payload) or
+    % (cover, payload, params). nargin on the file name tells us which,
+    % and a negative value means varargin, in which case params is passed.
+    declared = nargin(entry);
+    handle   = str2func(entry);
+
+    try
+        if declared >= 3 || declared < 0
+            handle(imagePath, payload, params);
+        else
+            handle(imagePath, payload);
+        end
+    catch err
+        % The costs are assigned before embedding begins, so an error raised
+        % later - typically a MEX file that was never compiled for this
+        % platform - still leaves us with what we need.
+        if evalin('base', 'exist(''ref_costs'', ''var'')') == 1
+            fprintf(['    %s stopped after computing the costs (%s); ' ...
+                     'the costs themselves are fine\n'], model, err.message);
+            return;
+        end
+
+        if strcontains(err.message, 'Too many input arguments')
+            handle(imagePath, payload);
+            return;
+        end
+        if strcontains(err.message, 'Not enough input arguments')
+            error(['%s wants a params field this script does not supply. ' ...
+                   'The error above names the line; add that field to the ' ...
+                   'models table near the top of this file.'], entry);
+        end
+        rethrow(err);
+    end
+end
+
+
+function tf = strcontains(text, pattern)
+    % contains() is not available in older MATLAB releases.
+    tf = ~isempty(strfind(text, pattern)); %#ok<STREMP>
+end
 
 
 function writeMatrix(path, matrix)
