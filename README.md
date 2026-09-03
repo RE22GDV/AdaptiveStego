@@ -253,7 +253,7 @@ matters as much as the numbers, so it is stated first.
 with no container header. The application container carries a fixed signature,
 flags and checksums, and those constant bytes would become part of the stego
 signal - an extra variable that has nothing to do with the algorithm under
-test. At 0.4 bpp on a 256x256 cover the payload is exactly 26214 bits.
+test. At 0.4 bpp on a 512x512 cover the payload is exactly 104858 bits.
 
 **One key and one payload per case.** Every (cover, replicate) pair derives its
 own embedding key and its own payload from the cover content, the replicate
@@ -274,139 +274,111 @@ machine.
 **Confidence intervals are clustered.** Three replicates of one cover are not
 three independent observations - image content dominates every metric here.
 Replicates are averaged within a cover first, and the intervals come from a
-bootstrap over the 12 covers. Method comparisons are paired on the cover,
-because every method sees exactly the same images.
+bootstrap over the covers. Method comparisons are paired on the cover, because
+every method sees exactly the same images.
 
 ```bash
-python experiments/benchmark.py --synthetic 12 --size 256 --seeds 3 --out results/main
-python experiments/report.py results/main.csv
+python data/download_bossbase.py                                # 1.6 GB, once
+python experiments/benchmark.py --config configs/bossbase.json  # 200 covers
+python experiments/report.py results/bossbase-smoke.csv
+python experiments/ablation.py --images "data/bossbase/*.pgm"     --grayscale --limit 200 --seeds 1 --jobs 0 --out results/bb
 ```
 
-### Detectability at an equal payload
+About 25 minutes on 32 cores for the first, 10 for the second. The exact files
+used are named by `docs/results/bossbase-manifest.json`, which records the
+image count and a digest of the whole collection.
 
-12 synthetic covers x 3 replicates, detectability from sample pair analysis
-(SPA); a clean cover scores **0.0027**. Intervals are 95% cluster bootstrap
-over covers.
+### Detectability on BOSSBase
 
-![detectability](docs/figures/detectability.png)
+**200 covers from BOSSBase 1.01**, three independent embedding realisations
+each, detectability from sample pair analysis (SPA). A clean cover scores
+**0.0132**. Intervals are 95% cluster bootstrap over the 200 covers.
 
-| Method | 0.05 bpp | 0.1 bpp | 0.2 bpp | 0.4 bpp | PSNR @0.4 | SSIM @0.4 |
-|---|---|---|---|---|---|---|
-| sequential | 0.0128 | 0.0303 | 0.0630 | 0.1296 [0.1259, 0.1328] | 59.89 dB | 0.99900 |
-| random | 0.0105 | 0.0254 | 0.0584 | 0.1254 [0.1221, 0.1286] | 59.90 dB | 0.99920 |
-| adaptive | 0.0116 | 0.0149 | 0.0249 | 0.0524 [0.0496, 0.0549] | 59.90 dB | 0.99940 |
-| edge | 0.0111 | 0.0128 | 0.0184 | 0.0403 [0.0377, 0.0428] | 59.89 dB | 0.99940 |
-| adaptive-matching | 0.0099 | 0.0116 | 0.0184 | **0.0324 [0.0292, 0.0354]** | 59.89 dB | 0.99940 |
-| matching | 0.0027 | 0.0026 | 0.0024 | 0.0028 [0.0013, 0.0044] | 59.90 dB | 0.99920 |
-| stc | 0.0029 | 0.0032 | 0.0036 | 0.0034 [0.0018, 0.0052] | 63.86 dB | 0.99970 |
-| wow | 0.0028 | 0.0029 | 0.0031 | 0.0030 [0.0015, 0.0047] | 64.24 dB | 0.99970 |
-| uniward | 0.0027 | 0.0028 | 0.0030 | 0.0029 [0.0014, 0.0045] | **64.58 dB** | 0.99970 |
+![detectability on BOSSBase](docs/figures/detectability-bossbase.png)
 
-Paired against random LSB on the same covers, at 0.4 bpp:
+| Method | 0.05 bpp | 0.1 bpp | 0.2 bpp | 0.4 bpp | PSNR @0.4 |
+|---|---|---|---|---|---|
+| sequential | 0.0749 | 0.1390 | 0.2597 | 0.4630 | 55.12 dB |
+| random | 0.0597 | 0.1094 | 0.2083 | 0.4059 | 55.12 dB |
+| adaptive | 0.0180 | 0.0277 | 0.0565 | 0.1444 | 55.12 dB |
+| edge | 0.0168 | 0.0245 | 0.0496 | 0.1334 | 55.12 dB |
+| adaptive-matching | 0.0150 | 0.0191 | 0.0331 | 0.0796 | 55.12 dB |
+| matching | 0.0166 | 0.0199 | 0.0263 | 0.0383 | 55.12 dB |
+| stc | 0.0136 | 0.0142 | 0.0164 | 0.0232 | 57.89 dB |
+| wow | 0.0133 | 0.0139 | 0.0165 | **0.0229** | 58.20 dB |
+| uniward | 0.0135 | 0.0140 | 0.0167 | 0.0234 | **58.43 dB** |
+
+Real photographs separate the methods far more sharply than synthetic covers
+do. Random LSB reaches 0.41 at 0.4 bpp where a synthetic cover gave 0.13,
+because natural images have exactly the pixel-pair structure SPA was built to
+exploit. Against that, at 0.4 bpp and paired on the cover:
 
 | Method | SPA difference per cover | Ratio | Better on |
 |---|---|---|---|
-| adaptive | -0.0730 [-0.0751, -0.0710] | 0.42x | 12 of 12 covers |
-| edge | -0.0851 [-0.0868, -0.0832] | 0.32x | 12 of 12 covers |
-| adaptive-matching | -0.0931 [-0.0951, -0.0910] | 0.26x | 12 of 12 covers |
-| stc | -0.1220 [-0.1245, -0.1197] | 0.02x | 12 of 12 covers |
-| sequential | +0.0041 [+0.0030, +0.0054] | 1.03x | 0 of 12 covers |
+| adaptive | -0.2615 [-0.2699, -0.2532] | 0.34x | 200 of 200 |
+| adaptive-matching | -0.3263 [-0.3317, -0.3208] | 0.18x | 200 of 200 |
+| stc | -0.3827 [-0.3867, -0.3782] | 0.017x | 200 of 200 |
+| uniward | -0.3825 [-0.3867, -0.3776] | 0.013x | 200 of 200 |
+| wow | -0.3830 [-0.3872, -0.3784] | 0.012x | 200 of 200 |
 
-Three things worth stating plainly:
+The syndrome-coded methods sit at the cover baseline within the interval, and
+they get there while *also* raising PSNR by three decibels, because minimising
+distortion means changing far fewer samples for the same payload. The ordering
+codecs cannot do that: they change one sample per bit by construction.
 
-* At a substantial payload the adaptive ordering is clearly better: 2.4x lower
-  SPA than random LSB at 0.4 bpp, 3.9x when combined with +/-1, on every single
-  cover, at equal PSNR and slightly better SSIM.
-* **At 0.05 bpp the advantage is gone.** `adaptive` is in fact marginally
-  *worse* than random there (+0.0011, interval excluding zero) and `edge` is
-  indistinguishable from it. With so few changes the estimator is near its own
-  noise floor, and concentrating those few changes buys nothing.
-* `matching` and the three syndrome-coded methods sit at the cover baseline for
-  a structural reason, not a good one: SPA is built on the value pairs that LSB replacement creates, so it
-  is not designed to detect +/-1 embedding at all. **Their SPA numbers are not
-  evidence of undetectability** and must not be read as such; that question
-  needs a detector that works against +/-1, which is what SRNet is for.
+As before, SPA cannot see +/-1 embedding at all, so the bottom four rows say
+"this attack does not apply" rather than "this is undetectable". Separating
+them needs a detector that targets +/-1 directly.
 
 ### Cost models compared with the coder held fixed
 
 `stc`, `wow` and `uniward` run the same syndrome coder over the same covers
-with the same payloads. The only difference is which cost model decides what a
-change is worth, so the comparison is about the cost model alone.
+with the same payloads. Only the cost model differs, so the comparison is about
+the cost model alone. On the same 200 BOSSBase covers:
 
 | Payload bits per change | 0.05 bpp | 0.1 bpp | 0.2 bpp | 0.4 bpp |
 |---|---|---|---|---|
-| S-UNIWARD | **7.82** | **7.30** | **6.66** | **5.88** |
-| WOW | 6.69 | 6.35 | 5.99 | 5.45 |
-| this project | 5.99 | 5.71 | 5.38 | 4.99 |
+| S-UNIWARD | **6.26** | **5.81** | **5.16** | **4.29** |
+| WOW | 5.37 | 5.15 | 4.74 | 4.07 |
+| this project | 4.97 | 4.71 | 4.34 | 3.79 |
 
 **Our cost model comes third of three, on both counts.** At 0.4 bpp S-UNIWARD
-needs 2.27 % of the samples where ours needs 2.67 %, and its PSNR is 0.7 dB
-higher. It is also the slowest to compute: 513 ms against 169 ms for WOW and
-149 ms for S-UNIWARD on a one megapixel cover, because it builds five
-sub-maps where they take three convolutions.
+changes 9.33 % of the samples where ours changes 10.58 %, and it is also the
+faster to compute: 149 ms against our 513 ms per megapixel, because it takes
+three convolutions where we build five sub-maps.
 
-That is the honest state of the work. The complexity map was designed to
-*rank* samples for the ordering codecs, not to price them, and its floor and
-gamma have never been fitted. The one caveat in its favour is that these are
-synthetic covers; the ranking may differ on BOSSBase.
-
-Nothing here says anything about detectability. All three are +/-1 methods, so
-SPA cannot see them, and the question of which cost model actually hides better
-needs a detector that can - which is what the SRNet work in the
-[roadmap](docs/roadmap.md) is for.
-
-### What syndrome coding actually buys
-
-The defensible claim for `stc` is about distortion, not detectability, and it
-is large. At 0.4 bpp, with the same payload in the same images:
-
-| Method | Samples changed | Payload bits per change | PSNR | Embed time |
-|---|---|---|---|---|
-| uniward | **2.27 %** | **5.88** | **64.58 dB** | 1.48 s |
-| wow | 2.45 % | 5.44 | 64.24 dB | 2.03 s |
-| stc | 2.67 % | 4.99 | 63.86 dB | 1.56 s |
-| adaptive | 6.66 % | 2.00 | 59.90 dB | 0.029 s |
-| random | 6.66 % | 2.00 | 59.90 dB | 0.007 s |
-| sequential | 6.67 % | 2.00 | 59.89 dB | 0.0005 s |
-
-Ordered placement flips a bit whenever the cover bit disagrees with the message
-bit, which is half the time, so it is stuck at 2 payload bits per change. The
-trellis search instead picks, among all bit vectors with the right syndrome,
-the one whose changes are cheapest - 2.5x fewer changes and nearly 4 dB of
-PSNR, at about fifty times the embedding cost. Extraction stays cheap, since it
-is only a syndrome computation.
-
-The implementation is verified against brute force: for vectors short enough to
-enumerate, all 2^n candidates are searched and the trellis result must match
-the true minimum exactly, with and without unusable samples.
+That is the honest state of the work. The complexity map was designed to *rank*
+samples for the ordering codecs, not to price them, and its floor and gamma
+have never been fitted. Improving it is a roadmap item, with the note that
+fitting must not happen on the data the result is reported on.
 
 ### Ablation: which complexity map matters
 
-![ablation](docs/figures/ablation.png)
+![ablation on BOSSBase](docs/figures/ablation-bossbase.png)
 
-SPA estimate for the adaptive codec with one map at a time (lower is better):
+SPA estimate for the adaptive codec with one map at a time, same 200 covers:
 
 | Map | 0.1 bpp | 0.2 bpp | 0.4 bpp |
 |---|---|---|---|
-| sobel | 0.0128 | 0.0184 | **0.0403** |
-| variance | 0.0228 | 0.0287 | 0.0503 |
-| combined | 0.0149 | 0.0249 | 0.0524 |
-| entropy | 0.0147 | 0.0278 | 0.0580 |
-| highfreq | 0.0317 | 0.0503 | 0.0856 |
-| laplacian | 0.0269 | 0.0480 | 0.0869 |
-| uniform (control) | 0.0258 | 0.0594 | 0.1268 |
-| chroma | 0.0752 | 0.1131 | 0.2362 |
+| sobel | 0.0243 | 0.0493 | **0.1325** |
+| combined | 0.0277 | 0.0567 | 0.1449 |
+| entropy | 0.0283 | 0.0586 | 0.1513 |
+| variance | 0.0301 | 0.0617 | 0.1674 |
+| highfreq | 0.0451 | 0.0971 | 0.2286 |
+| laplacian | 0.0479 | 0.1033 | 0.2425 |
+| uniform (control) | 0.1095 | 0.2084 | 0.4056 |
+| chroma | 0.1098 | 0.2086 | 0.4070 |
 
-* The **control works**. A uniform map removes every content preference, and
-  the adaptive codec then scores 0.1268 against random LSB's 0.1254. The gain
-  comes from the content of the map, not from the machinery around it.
-* The **plain Sobel map beats the combined one**. The combined weights were
-  chosen a priori and have deliberately not been tuned on these results;
-  tuning them here and then reporting the same numbers would be fitting the
-  test set.
-* **Chroma is actively harmful** - almost twice as detectable as no adaptivity
-  at all. Placing bits where the colour channels disagree correlates with
-  exactly what SPA looks for.
+* The **control lands exactly where it should**. A uniform map removes every
+  content preference, and the adaptive codec then scores 0.4056 against random
+  LSB's 0.4059. The gain comes from the content of the map, not from the
+  machinery around it.
+* The **plain Sobel map still beats the combined one**, as it did on synthetic
+  covers. The combined weights were chosen a priori and have deliberately not
+  been tuned on these results.
+* `chroma` is meaningless here and the number shows it: BOSSBase is grayscale,
+  so the inter-channel spread is identically zero and the map degenerates into
+  the control.
 
 ### Robustness and error correction
 

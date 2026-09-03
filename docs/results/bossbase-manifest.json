@@ -1,0 +1,15 @@
+{
+  "n_images": 10000,
+  "total_bytes": 2621590000,
+  "collection_sha256": "282fd76472af7ff306f4154e5555867ede99b074137becced1c6cea4e21fe0d5",
+  "first": [
+    "1.pgm",
+    "10.pgm",
+    "100.pgm"
+  ],
+  "last": [
+    "9997.pgm",
+    "9998.pgm",
+    "9999.pgm"
+  ]
+}

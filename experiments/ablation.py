@@ -37,6 +37,10 @@ def main(argv=None) -> int:
     parser.add_argument("--size", type=int, default=256)
     parser.add_argument("--images", nargs="+")
     parser.add_argument("--grayscale", action="store_true")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="cap the number of images, as in benchmark.py")
+    parser.add_argument("--jobs", type=int, default=0,
+                        help="processes to run images on; 0 uses every core")
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--payloads", nargs="+", type=float,
                         default=[0.1, 0.2, 0.4])
@@ -52,8 +56,11 @@ def main(argv=None) -> int:
                    "--attacks", "identity", "--seeds", str(args.seeds),
                    "--payloads", *[str(p) for p in args.payloads],
                    "--out", prefix]
+        command += ["--jobs", str(args.jobs)]
         if args.images:
             command += ["--images", *args.images]
+            if args.limit:
+                command += ["--limit", str(args.limit)]
             if args.grayscale:
                 command.append("--grayscale")
         else:

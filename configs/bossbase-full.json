@@ -27,5 +27,6 @@
   "seeds": 1,
   "master_key": "bossbase-full-v1",
   "out": "results/bossbase-full",
-  "jobs": 0
+  "jobs": 0,
+  "no_steganalysis": true
 }

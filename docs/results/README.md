@@ -6,7 +6,11 @@ with the commands below and the summaries will be reproduced exactly.
 
 | File | Produced by |
 |---|---|
-| `main.summary.csv` | `experiments/benchmark.py --synthetic 12 --size 256 --seeds 3` then `experiments/report.py`; means with 95% cluster bootstrap intervals over covers |
+| `bossbase-smoke.summary.csv` | `experiments/benchmark.py --config configs/bossbase.json` then `experiments/report.py`; 200 BOSSBase covers, three realisations each |
+| `bossbase-smoke.paired.csv` | the same run: per-cover differences against the `random` baseline |
+| `ablation-summary-bossbase.csv` | `experiments/ablation.py` over the same 200 covers |
+| `bossbase-manifest.json` | which BOSSBase files the runs used, and a digest of the collection |
+| `main.summary.csv` | the same on 12 synthetic covers, kept for comparison with the real data |
 | `main.paired.csv` | the same run: per-cover differences against the `random` baseline |
 | `main.robustness.csv` | the same run: recovery rate per attack and method |
 | `ablation-summary.csv` | `experiments/ablation.py` - one run per complexity map |

@@ -14,6 +14,12 @@ python experiments/benchmark.py --config configs/bossbase.json       # 200 image
 python experiments/benchmark.py --config configs/bossbase-full.json  # all 10 000
 ```
 
+On 32 cores the smoke config takes about 25 minutes (200 covers, three
+replicates each) and the full one about four hours: it uses one embedding
+realisation per cover, which is the right trade at that sample size, and skips
+the classical steganalysis, which costs a quarter of the run and is blind to
+the +/-1 methods anyway.
+
 The download script writes `data/bossbase/manifest.json` with the image count
 and a digest of the whole collection, so a published result can state exactly
 which files produced it.
