@@ -25,7 +25,7 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from adaptivestego.cost_models import WET, costs_for  # noqa: E402
+from adaptivestego.cost_models import costs_for, wet_cost  # noqa: E402
 from adaptivestego.image_io import read_image  # noqa: E402
 
 VECTOR_DIR = os.path.join(ROOT, "tests", "data", "cost_vectors")
@@ -42,10 +42,10 @@ def load_reference(path: str, shape: tuple[int, int]) -> np.ndarray:
     return data.reshape(shape)
 
 
-def compare(ported: np.ndarray, reference: np.ndarray) -> dict:
+def compare(ported: np.ndarray, reference: np.ndarray, wet: float) -> dict:
     """Relative agreement, ignoring the shared wet entries."""
-    wet_ported = ported >= WET
-    wet_reference = reference >= WET
+    wet_ported = ported >= wet
+    wet_reference = reference >= wet
     wet_agree = bool(np.array_equal(wet_ported, wet_reference))
 
     live = ~(wet_ported | wet_reference)
@@ -92,7 +92,8 @@ def main(argv=None) -> int:
                     missing.append(os.path.basename(path))
                     continue
 
-                report = compare(ported, load_reference(path, cover.shape))
+                report = compare(ported, load_reference(path, cover.shape),
+                                 wet_cost(model))
                 checked += 1
                 ok = report["max_relative"] <= args.tolerance and report["wet_agree"]
                 if not ok:

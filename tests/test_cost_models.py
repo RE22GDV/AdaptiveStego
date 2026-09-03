@@ -12,7 +12,7 @@ from conftest import raises, skip
 
 import adaptivestego as sl
 from adaptivestego import cost_models
-from adaptivestego.cost_models import WET, cost_model_names, costs_for
+from adaptivestego.cost_models import cost_model_names, costs_for, wet_cost
 from adaptivestego.image_io import read_image
 from adaptivestego.prng import deterministic_bits
 from adaptivestego.testing import synthetic_cover
@@ -21,6 +21,16 @@ VECTOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "data", "cost_vectors")
 REFERENCE_MODELS = ("wow", "uniward")
 TOLERANCE = 1e-9
+
+
+def test_wet_costs_match_the_reference_constants():
+    """WOW.m uses 10^10 and S_UNIWARD.m uses 10^8; the ports must agree.
+
+    A cost map is only comparable to the reference value by value if the
+    entries for impossible directions match too.
+    """
+    assert wet_cost("wow") == 1e10
+    assert wet_cost("uniward") == 1e8
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +73,8 @@ def test_ports_match_the_reference_implementation():
         reference = np.fromfile(reference_path,
                                 dtype=np.float64).reshape(cover.shape)
 
-        wet_ported, wet_reference = ported >= WET, reference >= WET
+        wet = wet_cost(model)
+        wet_ported, wet_reference = ported >= wet, reference >= wet
         assert np.array_equal(wet_ported, wet_reference), (
             f"{model}/{direction} disagrees about which samples are unusable")
 
@@ -92,7 +103,7 @@ def test_every_model_produces_finite_costs_with_the_right_shape():
         assert up.shape[:2] == cover.shape
         assert down.shape[:2] == cover.shape
         assert np.all(up > 0) and np.all(down > 0)
-        assert np.isfinite(up[up < WET]).all()
+        assert np.isfinite(up[up < wet_cost(model)]).all()
 
 
 def test_costs_are_lower_where_the_image_is_textured():
@@ -121,9 +132,10 @@ def test_saturated_samples_have_one_wet_direction():
     cover[0, 0] = 0
     cover[0, 1] = 255
     for model in cost_model_names():
+        wet = wet_cost(model)
         up, down = costs_for(cover, model)
-        assert down[0, 0] >= WET and up[0, 0] < WET, model
-        assert up[0, 1] >= WET and down[0, 1] < WET, model
+        assert down[0, 0] >= wet and up[0, 0] < wet, model
+        assert up[0, 1] >= wet and down[0, 1] < wet, model
 
 
 def test_models_are_deterministic():

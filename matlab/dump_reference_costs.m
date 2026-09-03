@@ -55,10 +55,18 @@ if isempty(images)
           vectorDir);
 end
 
-% The reference defaults: p = -1 for WOW, sigma = 1 for S-UNIWARD.
+% One row per model: our name, the function, its params, and whether its
+% first argument is the image matrix or the path to it.
+%
+% This last column matters more than it looks. WOW.m declares
+% (cover, payload, params) and immediately does double(cover); handing it a
+% path would silently turn the file name into character codes and produce a
+% 1-by-N "cost map" with no error at all. S_UNIWARD.m declares
+% (coverPath, payload) and does the imread itself. Check the first line of
+% your copies if a release differs.
 models = { ...
-    'wow',     'WOW',       struct('p', -1); ...
-    'uniward', 'S_UNIWARD', struct('sigma', 1) ...
+    'wow',     'WOW',       struct('p', -1),     'image'; ...
+    'uniward', 'S_UNIWARD', struct('sigma', 1),  'path'  ...
 };
 payload = 0.4;      % the value does not affect the costs, only the simulator
 
@@ -68,13 +76,22 @@ for iImage = 1:numel(images)
     imagePath = fullfile(vectorDir, images(iImage).name);
     [~, stem]  = fileparts(images(iImage).name);
 
+    coverImage = imread(imagePath);
+
     for iModel = 1:size(models, 1)
         model      = models{iModel, 1};
         entry      = models{iModel, 2};
         params     = models{iModel, 3};
+        inputKind  = models{iModel, 4};
+
+        if strcmp(inputKind, 'image')
+            coverArg = coverImage;
+        else
+            coverArg = imagePath;
+        end
 
         evalin('base', 'clear ref_costs');
-        callReference(entry, imagePath, payload, params, model);
+        callReference(entry, coverArg, payload, params, model);
 
         if evalin('base', 'exist(''ref_costs'', ''var'')') ~= 1
             error(['%s did not publish its costs. Add the assignin line ' ...
@@ -83,6 +100,17 @@ for iImage = 1:numel(images)
         costs = evalin('base', 'ref_costs');
         rhoP1 = costs{1};
         rhoM1 = costs{2};
+
+        % A cost map that is not the size of the image means the function was
+        % handed the wrong kind of first argument. Catch it here rather than
+        % writing a plausible-looking but meaningless reference file.
+        if ~isequal(size(rhoP1), size(coverImage))
+            error(['%s returned a %dx%d cost map for a %dx%d image. Its first ' ...
+                   'argument is probably the other kind; change the last ' ...
+                   'column of the models table for this row.'], entry, ...
+                  size(rhoP1, 1), size(rhoP1, 2), ...
+                  size(coverImage, 1), size(coverImage, 2));
+        end
 
         writeMatrix(fullfile(vectorDir, sprintf('%s.%s.up.f64', stem, model)), ...
                     rhoP1);

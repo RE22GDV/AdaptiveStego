@@ -35,14 +35,24 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-__all__ = ["COST_MODELS", "WET", "cost_model_names", "costs_for",
-           "complexity_costs", "wow_costs", "uniward_costs",
+__all__ = ["COST_MODELS", "WET", "WET_COST", "wet_cost", "cost_model_names",
+           "costs_for", "complexity_costs", "wow_costs", "uniward_costs",
            "wavelet_filters", "binary_costs", "preferred_direction"]
 
-# The reference implementations use 10^10 rather than infinity, and clamp to
-# it. Keeping the same constant keeps the ported costs comparable value by
-# value; the syndrome coder treats anything this large as unusable anyway.
+# A "wet" sample is one that cannot be changed in a given direction. The
+# reference implementations use a large finite number rather than infinity,
+# and they do not agree on which: WOW.m uses 10^10 and S_UNIWARD.m uses 10^8.
+# Each model keeps its own value, because a cost map is only comparable to the
+# reference value by value if the wet entries match too. The syndrome coder
+# treats anything this large as unusable either way.
 WET = 1e10
+
+WET_COST = {"complexity": 1e10, "wow": 1e10, "uniward": 1e8}
+
+
+def wet_cost(model: str) -> float:
+    """The value this model assigns to a direction that cannot be taken."""
+    return WET_COST.get(model, WET)
 
 # Daubechies 8 high-pass decomposition filter, exactly as in the DDE Lab code.
 _HPDF = np.array([
@@ -99,13 +109,14 @@ def _suitability(cover: np.ndarray, transform) -> np.ndarray:
     return parts
 
 
-def _finish(rho: np.ndarray, cover: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _finish(rho: np.ndarray, cover: np.ndarray,
+            wet: float) -> tuple[np.ndarray, np.ndarray]:
     """Clamp, then forbid the direction that would leave the 0..255 range."""
-    rho = np.where(np.isnan(rho), WET, rho)
-    rho = np.minimum(rho, WET)
+    rho = np.where(np.isnan(rho), wet, rho)
+    rho = np.minimum(rho, wet)
     up, down = rho.copy(), rho.copy()
-    up[cover == 255] = WET
-    down[cover == 0] = WET
+    up[cover == 255] = wet
+    down[cover == 0] = wet
     return up, down
 
 
@@ -145,7 +156,7 @@ def wow_costs(cover: np.ndarray, *, p: float = -1.0,
         with np.errstate(divide="ignore", invalid="ignore"):
             summed = sum(np.power(part, p) for part in parts)
             rho = np.power(summed, -1.0 / p)
-        return _finish(rho, channel)
+        return _finish(rho, channel, WET_COST["wow"])
 
     return _per_channel(cover, single)
 
@@ -161,7 +172,7 @@ def uniward_costs(cover: np.ndarray, *, sigma: float = 1.0,
     """
     def single(channel: np.ndarray):
         parts = _suitability(channel, lambda r: 1.0 / (np.abs(r) + sigma))
-        return _finish(sum(parts), channel)
+        return _finish(sum(parts), channel, WET_COST["uniward"])
 
     return _per_channel(cover, single)
 

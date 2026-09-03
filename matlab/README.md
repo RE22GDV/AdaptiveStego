@@ -40,13 +40,17 @@ with no MATLAB needed.
 
 4. **Dump the reference costs:**
 
-   The driver adapts to whichever signature your copies declare. `WOW.m`
-   usually wants a third argument (`params.p`, the Holder exponent, -1 in the
-   published defaults) and `S_UNIWARD.m` usually takes only two; the driver
-   checks with `nargin` and passes `params` only when the function declares it.
-   If a release asks for a field the driver does not supply, the error names
-   the line, and the field goes into the `models` table near the top of
-   `dump_reference_costs.m`.
+   The driver adapts to whichever signature your copies declare. In the 2012
+   and 2013 releases `WOW(cover, payload, params)` takes the **image matrix**
+   and needs `params.p`, while `S_UNIWARD(coverPath, payload)` takes the
+   **path** and hardcodes sigma. The driver passes each what it expects and
+   checks with `nargin` whether to supply `params` at all.
+
+   That distinction is not cosmetic: `WOW.m` starts with `double(cover)`, so
+   handing it a path would quietly convert the file name into character codes
+   and produce a 1-by-N cost map with no error raised. The driver therefore
+   verifies that every cost map has the size of its image, and says which
+   column of the `models` table to change if it does not.
 
    A failure *after* the costs are computed - almost always an STC MEX binary
    that was never compiled for your platform - is not a problem: the costs are
@@ -69,6 +73,10 @@ with no MATLAB needed.
    It prints the largest relative difference per image, model and direction,
    and whether the maps of unusable ("wet") samples agree exactly. A faithful
    port lands around 1e-15; the default tolerance is 1e-9.
+
+   The two files do not use the same wet cost - `WOW.m` uses 10^10 and
+   `S_UNIWARD.m` uses 10^8 - and the port matches each of them, since a cost
+   map only agrees value by value if the impossible directions agree too.
 
 6. **Commit the reference files.** They are small - a 64x64 map is 32 KB - and
    they turn the one-off MATLAB check into a permanent regression test.
