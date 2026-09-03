@@ -233,8 +233,8 @@ They share one coder and differ only in the cost model, which is what makes
 them comparable. `wow` and `uniward` are ports of the reference implementations
 published by the Binghamton DDE Lab, and they are checked against that MATLAB
 code rather than assumed correct: on four test images the costs agree to
-**4e-11 or better** wherever a cost is one an embedder would act on, and the
-maps of unusable samples match exactly. The comparison is pinned by committed
+**4e-11 or better** once clamped at a cost no embedder would ever act on, and
+the maps of unusable samples match exactly. The comparison is pinned by committed
 reference vectors, so it re-runs on every commit without MATLAB
 (see [matlab/README.md](matlab/README.md)).
 

@@ -72,7 +72,16 @@ with no MATLAB needed.
 
    It prints the largest relative difference per image, model and direction,
    and whether the maps of unusable ("wet") samples agree exactly. A faithful
-   port lands around 1e-15; the default tolerance is 1e-9.
+   port lands between 1e-15 and 1e-11; the tolerance is 1e-9.
+
+   Costs are compared after clamping at 1000. Typical costs are between 0.01
+   and 100, so that changes nothing an embedder would act on, and above it the
+   numbers carry no information: in a perfectly flat region the wavelet
+   residual is zero up to cancellation, and the reciprocal Holder norm of WOW
+   turns that into a cost of order 1e9 whose digits differ between builds of
+   the same code - 2e-5 on Windows against 1.3e-4 on macOS, here, for the same
+   input. The meaningful statement about such a sample is that both
+   implementations call it unusable, which is what clamping asserts.
 
    The two files do not use the same wet cost - `WOW.m` uses 10^10 and
    `S_UNIWARD.m` uses 10^8 - and the port matches each of them, since a cost
