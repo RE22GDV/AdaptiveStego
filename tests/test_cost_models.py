@@ -38,10 +38,29 @@ def test_wet_costs_match_the_reference_constants():
     """WOW.m uses 10^10 and S_UNIWARD.m uses 10^8; the ports must agree.
 
     A cost map is only comparable to the reference value by value if the
-    entries for impossible directions match too.
+    entries for impossible directions match too. Our own model is under no such
+    obligation and simply uses infinity.
     """
     assert wet_cost("wow") == 1e10
     assert wet_cost("uniward") == 1e8
+    assert wet_cost("complexity") == float("inf")
+
+
+def test_costs_stay_positive_on_large_covers():
+    """A negative cost broke a 512x512 run that 64x64 vectors never reached.
+
+    OpenCV filters large kernels through a DFT, and its round-off can put a
+    suitability - a convolution of non-negative values with a non-negative
+    kernel - a few times 1e-15 below zero where the true value is zero. One
+    such sample is enough for the reciprocal Holder norm of WOW to produce a
+    negative cost, which syndrome coding rejects outright.
+    """
+    for seed in (15, 40, 68):                 # the covers that first failed
+        cover = synthetic_cover(512, 512, seed=seed, channels=1)
+        for model in cost_model_names():
+            up, down = costs_for(cover, model)
+            assert up.min() > 0 and down.min() > 0, (seed, model)
+            assert not np.isnan(up).any() and not np.isnan(down).any(), (seed, model)
 
 
 # ---------------------------------------------------------------------------

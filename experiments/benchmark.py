@@ -216,7 +216,9 @@ def _worker(task):
     if isinstance(source, str):
         img = sl.read_image(source, grayscale=options["grayscale"])
     else:
-        img = synthetic_cover(source[0], source[0], seed=source[1])
+        size, seed = source
+        img = synthetic_cover(size, size, seed=seed,
+                              channels=1 if options["grayscale"] else 3)
     return run_image(name, img, options)
 
 

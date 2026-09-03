@@ -47,7 +47,9 @@ __all__ = ["COST_MODELS", "WET", "WET_COST", "wet_cost", "cost_model_names",
 # treats anything this large as unusable either way.
 WET = 1e10
 
-WET_COST = {"complexity": 1e10, "wow": 1e10, "uniward": 1e8}
+# Our own model says "never" with infinity, which the trellis handles and which
+# leaves no doubt; the ported ones must use the constants their references use.
+WET_COST = {"complexity": float("inf"), "wow": 1e10, "uniward": 1e8}
 
 
 def wet_cost(model: str) -> float:
@@ -114,7 +116,16 @@ def _suitability(cover: np.ndarray, transform) -> np.ndarray:
         if kernel.shape[1] % 2 == 0:
             xi = np.roll(xi, 1, axis=1)
 
-        parts.append(xi[pad:pad + cover.shape[0], pad:pad + cover.shape[1]])
+        cropped = xi[pad:pad + cover.shape[0], pad:pad + cover.shape[1]]
+
+        # The suitability convolves non-negative values with a non-negative
+        # kernel, so it cannot be negative - but OpenCV switches to a DFT based
+        # path for kernels this large, and its round-off can put a sum of
+        # non-negative terms a few times 1e-15 below zero where the true value
+        # is exactly zero. One such sample in a 512x512 image is enough to make
+        # the reciprocal Holder norm of WOW produce a negative cost. The
+        # reference implementation convolves directly and never sees this.
+        parts.append(np.maximum(cropped, 0.0))
     return parts
 
 

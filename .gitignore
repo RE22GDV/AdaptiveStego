@@ -11,8 +11,13 @@ venv/
 # experiment output and datasets (only at the repository root:
 # docs/results/ holds the committed summaries)
 /results/
-/data/
 /runs/
+
+# Datasets are fetched per machine, never committed. The download helper and
+# this file are the only things under data/ that belong in the repository.
+/data/*
+!/data/download_bossbase.py
+!/data/README.md
 *.ckpt
 *.pt
 
