@@ -17,6 +17,7 @@ with the commands below and the summaries will be reproduced exactly.
 | `ecc-summary.csv` | application-mode runs with `--ecc 0 8 16 32` under localised damage |
 | `performance.csv` | `experiments/performance.py --sizes 256 512 1024 2048` |
 | `performance.meta.json` | the machine those timings were measured on |
+| `detector-calibration.json` | `experiments/calibrate_detectors.py --skip 5000 --limit 150`; the thresholds in `analysis.py` and the detection table in the README come from this file. `--skip 5000` keeps it clear of the half of BOSSBase the shipped model was trained on |
 
 Timings depend on the machine; every other column is deterministic and should
 match on any installation whose `python -m adaptivestego selftest` digest agrees with

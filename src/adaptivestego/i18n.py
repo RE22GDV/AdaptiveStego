@@ -49,6 +49,13 @@ _STRINGS: dict[str, dict[str, str]] = {
         "common.band_bits": "Map quantisation (bits)",
         "common.ecc": "Error correction (parity bytes)",
         "common.compress": "Compress with zlib",
+        "common.no_key_material": "Leave no password traces in the image",
+        "common.no_key_material_hint": "The salt and the nonce are derived "
+                                       "from the password instead of being "
+                                       "stored, so nothing in the container "
+                                       "shows that a password was used. The "
+                                       "receiver needs only the password, as "
+                                       "before.",
         "common.grayscale": "Grayscale",
         "common.channels": "Channels",
         "common.channels_all": "all",
@@ -95,6 +102,27 @@ _STRINGS: dict[str, dict[str, str]] = {
         "extract.hint": "The method, key and parameters must match the ones "
                         "used for embedding",
         "extract.binary": "The message is not text; save it to a file",
+        "extract.not_found": "No container found with these settings",
+        "extract.not_found_title": "Nothing found",
+        "extract.not_found_hint": "The method, the key and the bits per "
+                                  "sample must match the ones used for "
+                                  "embedding. None of them are stored in the "
+                                  "image, so a wrong setting looks exactly "
+                                  "like an empty image.",
+        "extract.found_size": "Found: {container} container, {message} message",
+        "extract.found_compressed": "compressed",
+        "extract.found_encrypted": "encrypted",
+        "extract.found_maybe_encrypted": "probably encrypted, with no stored "
+                                         "key material",
+        "extract.found_ecc": "error correction {n}",
+        "extract.password_title": "Password required",
+        "extract.password_prompt_certain": "This message is encrypted. Enter "
+                                           "the password:",
+        "extract.password_prompt_suspected": "A container is there but does "
+                                             "not read as a message, and it "
+                                             "looks encrypted. Enter the "
+                                             "password:",
+        "extract.cancelled": "Cancelled",
 
         # -- analyse tab ----------------------------------------------------
         "analyze.title": "Steganalysis and image quality",
@@ -107,10 +135,34 @@ _STRINGS: dict[str, dict[str, str]] = {
         "analyze.spa": "SPA estimate",
         "analyze.ones": "Ones in the lowest bit plane",
         "analyze.autocorr": "Lag-1 autocorrelation",
-        "analyze.verdict_clean": "No sign of LSB replacement",
-        "analyze.verdict_suspect": "Traces of LSB replacement detected",
-        "analyze.verdict_hint": "These are classical detectors: they see LSB "
-                                "replacement but not LSB matching",
+        "analyze.rs": "RS estimate",
+        "analyze.ws": "WS estimate",
+        "analyze.hcf": "Calibrated HCF ratio",
+        "analyze.deep_scan": "Search every method for a container",
+        "analyze.overall": "Overall",
+        "analyze.file_structure": "File structure",
+        "analyze.format": "Format",
+        "analyze.file_size": "File size",
+        "analyze.file_clean": "nothing hidden in the file structure",
+        "analyze.statistics_say": "The statistics say",
+        "analyze.model": "Trained detector",
+        "analyze.model_missing": "no model installed; train one with "
+                                 "experiments/train_detector.py",
+        "analyze.model_probability": "Probability of a payload",
+        "analyze.model_trained": "Model",
+        "analyze.model_scope": "Valid for",
+        "analyze.containers": "Containers",
+        "analyze.containers_none": "none found",
+        "analyze.container_readable": "read in full",
+        "analyze.container_locked": "found, not readable",
+        "analyze.level_clean": "clean",
+        "analyze.level_suspicious": "suspicious",
+        "analyze.level_detected": "hidden data detected",
+        "analyze.verdict_hint": "The statistical detectors see LSB "
+                                "replacement; the trained model is what sees "
+                                "LSB matching. A clean verdict at a low "
+                                "payload means only that these tools found "
+                                "nothing.",
 
         # -- benchmark tab --------------------------------------------------
         "bench.title": "Compare methods on synthetic or real images",
@@ -178,6 +230,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "common.band_bits": "Квантування карти (біт)",
         "common.ecc": "Корекція помилок (байт надлишковості)",
         "common.compress": "Стискати zlib",
+        "common.no_key_material": "Не лишати в зображенні слідів пароля",
+        "common.no_key_material_hint": "Сіль і одноразове число виводяться з "
+                                       "пароля, а не зберігаються, тож ніщо в "
+                                       "контейнері не вказує, що пароль "
+                                       "використано. Одержувачу, як і раніше, "
+                                       "потрібен лише пароль.",
         "common.grayscale": "Відтінки сірого",
         "common.channels": "Канали",
         "common.channels_all": "усі",
@@ -223,6 +281,27 @@ _STRINGS: dict[str, dict[str, str]] = {
         "extract.hint": "Метод, ключ і параметри мають збігатися з тими, що "
                         "використовувалися під час вбудовування",
         "extract.binary": "Повідомлення не є текстом, збережіть його у файл",
+        "extract.not_found": "З цими параметрами контейнер не знайдено",
+        "extract.not_found_title": "Нічого не знайдено",
+        "extract.not_found_hint": "Метод, ключ і кількість бітів на відлік "
+                                  "мають збігатися з тими, що були при "
+                                  "вбудовуванні. Жоден із них не зберігається "
+                                  "в зображенні, тож хибний параметр виглядає "
+                                  "так само, як порожнє зображення.",
+        "extract.found_size": "Знайдено: контейнер {container}, повідомлення "
+                              "{message}",
+        "extract.found_compressed": "стиснуте",
+        "extract.found_encrypted": "зашифроване",
+        "extract.found_maybe_encrypted": "ймовірно зашифроване, без збережених "
+                                         "даних ключа",
+        "extract.found_ecc": "корекція помилок {n}",
+        "extract.password_title": "Потрібен пароль",
+        "extract.password_prompt_certain": "Повідомлення зашифроване. Введіть "
+                                           "пароль:",
+        "extract.password_prompt_suspected": "Контейнер є, але не читається як "
+                                             "повідомлення і має вигляд "
+                                             "шифротексту. Введіть пароль:",
+        "extract.cancelled": "Скасовано",
 
         "analyze.title": "Стегоаналіз та якість зображення",
         "analyze.button": "Аналізувати",
@@ -234,10 +313,34 @@ _STRINGS: dict[str, dict[str, str]] = {
         "analyze.spa": "Оцінка SPA",
         "analyze.ones": "Одиниці в молодшому біт-плані",
         "analyze.autocorr": "Автокореляція лагу 1",
-        "analyze.verdict_clean": "Ознак заміни молодших бітів не виявлено",
-        "analyze.verdict_suspect": "Виявлено сліди заміни молодших бітів",
-        "analyze.verdict_hint": "Це класичні детектори: вони бачать заміну "
-                                "молодшого біта, але не LSB matching",
+        "analyze.rs": "Оцінка RS",
+        "analyze.ws": "Оцінка WS",
+        "analyze.hcf": "Каліброване відношення HCF",
+        "analyze.deep_scan": "Шукати контейнер усіма методами",
+        "analyze.overall": "Загальний висновок",
+        "analyze.file_structure": "Структура файлу",
+        "analyze.format": "Формат",
+        "analyze.file_size": "Розмір файлу",
+        "analyze.file_clean": "у структурі файлу нічого не сховано",
+        "analyze.statistics_say": "Статистика каже",
+        "analyze.model": "Навчений детектор",
+        "analyze.model_missing": "модель не встановлено; навчіть її через "
+                                 "experiments/train_detector.py",
+        "analyze.model_probability": "Ймовірність наявності даних",
+        "analyze.model_trained": "Модель",
+        "analyze.model_scope": "Дійсна для",
+        "analyze.containers": "Контейнери",
+        "analyze.containers_none": "не знайдено",
+        "analyze.container_readable": "прочитано повністю",
+        "analyze.container_locked": "знайдено, не читається",
+        "analyze.level_clean": "чисто",
+        "analyze.level_suspicious": "підозріло",
+        "analyze.level_detected": "виявлено приховані дані",
+        "analyze.verdict_hint": "Статистичні детектори бачать заміну "
+                                "молодшого біта; LSB matching бачить лише "
+                                "навчена модель. Висновок «чисто» на малому "
+                                "навантаженні означає тільки те, що ці "
+                                "інструменти нічого не знайшли.",
 
         "bench.title": "Порівняння методів на синтетичних або реальних зображеннях",
         "bench.images": "Зображення",
@@ -304,6 +407,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "common.band_bits": "Квантование карты (бит)",
         "common.ecc": "Коррекция ошибок (байт избыточности)",
         "common.compress": "Сжимать zlib",
+        "common.no_key_material": "Не оставлять в изображении следов пароля",
+        "common.no_key_material_hint": "Соль и одноразовое число выводятся из "
+                                       "пароля, а не хранятся, поэтому ничто "
+                                       "в контейнере не выдаёт, что пароль "
+                                       "применялся. Получателю, как и раньше, "
+                                       "нужен только пароль.",
         "common.grayscale": "Градации серого",
         "common.channels": "Каналы",
         "common.channels_all": "все",
@@ -349,6 +458,27 @@ _STRINGS: dict[str, dict[str, str]] = {
         "extract.hint": "Метод, ключ и параметры должны совпадать с теми, "
                         "что использовались при встраивании",
         "extract.binary": "Сообщение не является текстом, сохраните его в файл",
+        "extract.not_found": "С этими параметрами контейнер не найден",
+        "extract.not_found_title": "Ничего не найдено",
+        "extract.not_found_hint": "Метод, ключ и число бит на отсчёт должны "
+                                  "совпадать с теми, что использовались при "
+                                  "встраивании. Ни один из них не хранится в "
+                                  "изображении, поэтому неверный параметр "
+                                  "выглядит так же, как пустое изображение.",
+        "extract.found_size": "Найдено: контейнер {container}, сообщение "
+                              "{message}",
+        "extract.found_compressed": "сжато",
+        "extract.found_encrypted": "зашифровано",
+        "extract.found_maybe_encrypted": "вероятно зашифровано, без сохранённых "
+                                         "данных ключа",
+        "extract.found_ecc": "коррекция ошибок {n}",
+        "extract.password_title": "Требуется пароль",
+        "extract.password_prompt_certain": "Сообщение зашифровано. Введите "
+                                           "пароль:",
+        "extract.password_prompt_suspected": "Контейнер есть, но не читается "
+                                             "как сообщение и похож на "
+                                             "шифротекст. Введите пароль:",
+        "extract.cancelled": "Отменено",
 
         "analyze.title": "Стегоанализ и качество изображения",
         "analyze.button": "Анализировать",
@@ -360,10 +490,34 @@ _STRINGS: dict[str, dict[str, str]] = {
         "analyze.spa": "Оценка SPA",
         "analyze.ones": "Единицы в младшем бит-плане",
         "analyze.autocorr": "Автокорреляция лага 1",
-        "analyze.verdict_clean": "Признаков замены младших бит не найдено",
-        "analyze.verdict_suspect": "Обнаружены следы замены младших бит",
-        "analyze.verdict_hint": "Это классические детекторы: они видят замену "
-                                "младшего бита, но не LSB matching",
+        "analyze.rs": "Оценка RS",
+        "analyze.ws": "Оценка WS",
+        "analyze.hcf": "Калиброванное отношение HCF",
+        "analyze.deep_scan": "Искать контейнер всеми методами",
+        "analyze.overall": "Общий вывод",
+        "analyze.file_structure": "Структура файла",
+        "analyze.format": "Формат",
+        "analyze.file_size": "Размер файла",
+        "analyze.file_clean": "в структуре файла ничего не спрятано",
+        "analyze.statistics_say": "Статистика говорит",
+        "analyze.model": "Обученный детектор",
+        "analyze.model_missing": "модель не установлена; обучите её через "
+                                 "experiments/train_detector.py",
+        "analyze.model_probability": "Вероятность наличия данных",
+        "analyze.model_trained": "Модель",
+        "analyze.model_scope": "Действительна для",
+        "analyze.containers": "Контейнеры",
+        "analyze.containers_none": "не найдено",
+        "analyze.container_readable": "прочитан полностью",
+        "analyze.container_locked": "найден, не читается",
+        "analyze.level_clean": "чисто",
+        "analyze.level_suspicious": "подозрительно",
+        "analyze.level_detected": "обнаружены скрытые данные",
+        "analyze.verdict_hint": "Статистические детекторы видят замену "
+                                "младшего бита; LSB matching видит только "
+                                "обученная модель. Вывод «чисто» при малой "
+                                "нагрузке означает лишь то, что эти "
+                                "инструменты ничего не нашли.",
 
         "bench.title": "Сравнение методов на синтетических или реальных изображениях",
         "bench.images": "Изображения",

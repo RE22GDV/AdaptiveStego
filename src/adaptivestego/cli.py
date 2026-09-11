@@ -3,6 +3,7 @@
     python -m adaptivestego gui
     python -m adaptivestego embed   -c cover.png -o stego.png -t "secret" --key pw
     python -m adaptivestego extract -i stego.png --key pw
+    python -m adaptivestego detect  -i suspect.png
     python -m adaptivestego capacity -i cover.png --method adaptive
     python -m adaptivestego analyze  -i stego.png
     python -m adaptivestego metrics  -c cover.png -s stego.png
@@ -18,8 +19,8 @@ import json
 import os
 import sys
 
-from . import __version__, analysis, attacks, metrics
-from .api import capacity, embed, extract
+from . import __version__, analysis, attacks, detector, forensics, metrics
+from .api import capacity, detect, embed, extract, scan
 from .codecs import codec_names
 from .cost_models import cost_model_names
 from .exceptions import StegoError
@@ -77,6 +78,12 @@ def _add_embed_params(parser: argparse.ArgumentParser) -> None:
                         help="encrypt with AES-256-GCM; without a value it is prompted")
     parser.add_argument("--password-env", default=None,
                         help="read the password from an environment variable")
+    parser.add_argument("--no-key-material", action="store_true",
+                        dest="no_key_material",
+                        help="do not put the salt, the nonce or the encrypted "
+                             "flag into the image: derive them from the "
+                             "password instead, so that nothing in the "
+                             "container shows a password was used")
 
 
 def _params_from_args(args) -> dict:
@@ -127,9 +134,15 @@ def cmd_embed(args) -> int:
     else:
         message = sys.stdin.read()
 
+    password = _password(args)
+    if args.no_key_material and password is None:
+        raise StegoError("--no-key-material needs --password: without one "
+                         "there is no key material to leave out")
+
     img = read_image(args.cover, grayscale=args.grayscale)
-    result = embed(img, message, password=_password(args),
+    result = embed(img, message, password=password,
                    compress=not args.no_compress, ecc_nsym=args.ecc,
+                   store_key_material=not args.no_key_material,
                    **_params_from_args(args))
     write_image(args.out, result.stego)
     info = result.summary()
@@ -138,9 +151,50 @@ def cmd_embed(args) -> int:
     return 0
 
 
+def _describe(probe) -> str:
+    """One line saying what was found, for the detection phase of extract."""
+    parts = [f"{probe.container_bytes} B container",
+             f"{probe.message_bytes} B message"]
+    if probe.header is not None and probe.header.compressed:
+        parts.append("compressed")
+    if probe.encrypted:
+        parts.append("encrypted")
+    elif probe.encryption_suspected:
+        parts.append("probably encrypted without stored key material")
+    if probe.header is not None and probe.header.ecc_nsym:
+        parts.append(f"ECC {probe.header.ecc_nsym}")
+    return ", ".join(parts)
+
+
 def cmd_extract(args) -> int:
     img = read_image(args.image, grayscale=args.grayscale)
-    text = extract(img, password=_password(args), **_params_from_args(args))
+    params = _params_from_args(args)
+    password = _password(args)
+
+    # Detection first. Announcing what is there before asking for a password
+    # turns "extraction failed" into a question that can be answered.
+    probe = detect(img, password=password, **params)
+    if not probe.found:
+        raise StegoError(
+            f"{probe.detail}\n"
+            f"Try `adaptivestego detect -i {args.image}` to search the other "
+            f"methods and bit depths.")
+    print(f"found: {_describe(probe)}", file=sys.stderr)
+
+    if probe.needs_password and password is None:
+        # Prompting is the right thing in a terminal and the wrong thing in a
+        # pipeline, and stdin alone does not tell the two apart: on Windows
+        # getpass reads the console directly, and MSYS reports a redirected
+        # stdin as a tty anyway. stderr is the stream that stays attached to
+        # the terminal when stdout is redirected, so it is the one to ask.
+        if sys.stdin.isatty() and sys.stderr.isatty():
+            password = getpass.getpass("Password: ")
+        else:
+            raise StegoError(
+                "the container needs a password; pass --password or "
+                "--password-env")
+
+    text = extract(img, password=password, **params)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:
             f.write(text)
@@ -156,14 +210,35 @@ def cmd_extract(args) -> int:
 def cmd_capacity(args) -> int:
     img = read_image(args.image, grayscale=args.grayscale)
     _dump(capacity(img, password=_password(args), ecc_nsym=args.ecc,
+                   store_key_material=not args.no_key_material,
                    **_params_from_args(args)))
     return 0
 
 
 def cmd_analyze(args) -> int:
     img = read_image(args.image, grayscale=args.grayscale)
-    _dump({"image": args.image, **analysis.quick_report(img)})
+    report = {"image": args.image, **analysis.quick_report(img)}
+    model = None if args.no_model else detector.load()
+    report["model"] = model.predict(img) if model is not None else None
+    _dump(report)
     return 0
+
+
+def cmd_detect(args) -> int:
+    """Everything at once: file structure, statistics, model, container scan."""
+    report = forensics.full_report(
+        args.image, key=args.key, password=_password(args),
+        grayscale=args.grayscale, scan_methods=not args.no_scan,
+        use_model=not args.no_model)
+    _dump(report)
+    return 0 if report["level"] == "clean" else 1
+
+
+def cmd_scan(args) -> int:
+    img = read_image(args.image, grayscale=args.grayscale)
+    hits = scan(img, key=args.key, password=_password(args))
+    _dump({"image": args.image, "hits": hits})
+    return 0 if not hits else 1
 
 
 def cmd_metrics(args) -> int:
@@ -185,7 +260,9 @@ def cmd_attack(args) -> int:
 def cmd_methods(_args) -> int:
     _dump({"methods": codec_names(), "maps": list(MAP_KINDS),
            "cost_models": cost_model_names(),
-           "attacks": attacks.attack_names()})
+           "attacks": attacks.attack_names(),
+           "detectors": list(analysis.DETECTORS),
+           "models": detector.available_models()})
     return 0
 
 
@@ -243,10 +320,40 @@ def build_parser() -> argparse.ArgumentParser:
     _add_embed_params(p)
     p.set_defaults(func=cmd_capacity)
 
-    p = sub.add_parser("analyze", help="classical steganalysis (chi2, SPA)")
+    p = sub.add_parser(
+        "analyze", help="statistical steganalysis (chi2, SPA, RS, WS, HCF)")
     p.add_argument("-i", "--image", required=True)
     p.add_argument("--grayscale", action="store_true")
+    p.add_argument("--no-model", action="store_true",
+                   help="skip the trained detector even if one is installed")
     p.set_defaults(func=cmd_analyze)
+
+    p = sub.add_parser(
+        "detect",
+        help="look for hidden data: file structure, statistics, a trained "
+             "model and a container scan")
+    p.add_argument("-i", "--image", required=True)
+    p.add_argument("--key", default=None,
+                   help="position key to try when scanning for a container")
+    p.add_argument("--grayscale", action="store_true")
+    p.add_argument("--no-scan", action="store_true",
+                   help="do not try every method and bit depth")
+    p.add_argument("--no-model", action="store_true",
+                   help="skip the trained detector even if one is installed")
+    p.add_argument("--password", nargs="?", const="", default=None,
+                   help="password to try on any container that is found")
+    p.add_argument("--password-env", default=None)
+    p.set_defaults(func=cmd_detect)
+
+    p = sub.add_parser(
+        "scan", help="try every method and bit depth, and report every "
+                     "container found")
+    p.add_argument("-i", "--image", required=True)
+    p.add_argument("--key", default=None)
+    p.add_argument("--grayscale", action="store_true")
+    p.add_argument("--password", nargs="?", const="", default=None)
+    p.add_argument("--password-env", default=None)
+    p.set_defaults(func=cmd_scan)
 
     p = sub.add_parser("metrics", help="PSNR and SSIM between cover and stego")
     p.add_argument("-c", "--cover", required=True)

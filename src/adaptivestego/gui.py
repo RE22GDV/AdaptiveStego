@@ -22,8 +22,16 @@ import traceback
 
 import numpy as np
 
-from . import analysis, i18n, metrics
-from .api import capacity, embed, embed_raw, extract, extract_raw, payload_bits_for_bpp
+from . import analysis, forensics, i18n, metrics
+from .api import (
+    capacity,
+    detect,
+    embed,
+    embed_raw,
+    extract,
+    extract_raw,
+    payload_bits_for_bpp,
+)
 from .codecs import codec_names, get_codec
 from .exceptions import StegoError
 from .image_io import LOSSLESS_EXT, read_image, write_image
@@ -218,6 +226,7 @@ class AdaptiveStegoApp:
             "band_bits": tk.IntVar(value=6),
             "ecc": tk.IntVar(value=0),
             "compress": tk.BooleanVar(value=True),
+            "no_key_material": tk.BooleanVar(value=False),
             "grayscale": tk.BooleanVar(value=False),
             "channels": tk.StringVar(value=_("common.channels_all")),
         }
@@ -252,6 +261,16 @@ class AdaptiveStegoApp:
 
         row = len(rows)
         if with_ecc:
+            self._label(ttk.Checkbutton(box, variable=state["no_key_material"]),
+                        "common.no_key_material").grid(
+                            row=row, column=0, columnspan=2, sticky="w",
+                            pady=(6, 0))
+            row += 1
+            self._label(ttk.Label(box, foreground="#666", wraplength=230,
+                                  justify="left"),
+                        "common.no_key_material_hint").grid(
+                            row=row, column=0, columnspan=2, sticky="w")
+            row += 1
             self._label(ttk.Checkbutton(box, variable=state["compress"]),
                         "common.compress").grid(row=row, column=0, columnspan=2,
                                                 sticky="w", pady=(6, 0))
@@ -426,8 +445,12 @@ class AdaptiveStegoApp:
         try:
             img = self._load_cover()
             kwargs = self._params_kwargs("embed")
-            info = capacity(img, password=kwargs.pop("password", None),
-                            ecc_nsym=int(self.embed_params["ecc"].get()), **kwargs)
+            info = capacity(
+                img, password=kwargs.pop("password", None),
+                ecc_nsym=int(self.embed_params["ecc"].get()),
+                store_key_material=not bool(
+                    self.embed_params["no_key_material"].get()),
+                **kwargs)
             self.embed_capacity_var.set(
                 f"{_format_bytes(info['message_bytes_max'])} "
                 f"({info['bpp']:.2f} bpp, {img.shape[1]}x{img.shape[0]})")
@@ -462,6 +485,13 @@ class AdaptiveStegoApp:
         kwargs = self._params_kwargs("embed")
         kwargs["ecc_nsym"] = int(self.embed_params["ecc"].get())
         kwargs["compress"] = bool(self.embed_params["compress"].get())
+        hide_key_material = bool(self.embed_params["no_key_material"].get())
+        if hide_key_material:
+            if not kwargs.get("password"):
+                messagebox.showwarning(_("common.error"),
+                                       _("embed.no_key_material_needs_password"))
+                return
+            kwargs["store_key_material"] = False
         out_path = self.embed_out_var.get()
 
         def work():
@@ -510,6 +540,11 @@ class AdaptiveStegoApp:
         self._label(ttk.Button(files, command=self._pick_stego),
                     "common.browse").grid(row=0, column=2)
 
+        self.extract_info_var = tk.StringVar()
+        ttk.Label(files, textvariable=self.extract_info_var,
+                  foreground="#20548a").grid(row=1, column=0, columnspan=3,
+                                             sticky="w", pady=(6, 0))
+
         body = ttk.Frame(parent)
         body.grid(row=3, column=0, columnspan=2, sticky="nsew")
         body.columnconfigure(0, weight=1)
@@ -544,6 +579,12 @@ class AdaptiveStegoApp:
             self.extract_image_var.set(path)
 
     def _run_extract(self) -> None:
+        """Phase one: find out what is in the image.
+
+        Extraction is split in two so that the program can say what it found
+        before it needs a password, and ask for one only when there is
+        something there that needs it. Detection needs no password at all.
+        """
         from tkinter import messagebox
 
         path = self.extract_image_var.get()
@@ -552,14 +593,67 @@ class AdaptiveStegoApp:
             return
         kwargs = self._params_kwargs("extract")
         gray = bool(self.extract_params["grayscale"].get())
+        self._extract_job = {"path": path, "kwargs": kwargs, "gray": gray}
 
         def work():
             img = read_image(path, grayscale=gray)
+            return {"img": img, "probe": detect(img, **kwargs)}
+
+        self._run_async(work, self._extract_detected)
+
+    def _describe_probe(self, probe) -> str:
+        """The detection result as one line of plain language."""
+        if not probe.found:
+            return _("extract.not_found")
+        parts = [_("extract.found_size").format(
+            container=_format_bytes(probe.container_bytes),
+            message=_format_bytes(probe.message_bytes))]
+        if probe.header is not None and probe.header.compressed:
+            parts.append(_("extract.found_compressed"))
+        if probe.encrypted:
+            parts.append(_("extract.found_encrypted"))
+        elif probe.encryption_suspected:
+            parts.append(_("extract.found_maybe_encrypted"))
+        if probe.header is not None and probe.header.ecc_nsym:
+            parts.append(_("extract.found_ecc").format(n=probe.header.ecc_nsym))
+        return " | ".join(parts)
+
+    def _extract_detected(self, data: dict) -> None:
+        """Phase two: ask for a password if one is needed, then decrypt."""
+        from tkinter import messagebox, simpledialog
+
+        probe = data["probe"]
+        job = self._extract_job
+        self.extract_info_var.set(self._describe_probe(probe))
+
+        if not probe.found:
+            self.set_status(_("extract.empty"))
+            messagebox.showinfo(_("extract.not_found_title"),
+                                _("extract.not_found_hint"))
+            return
+
+        kwargs = dict(job["kwargs"])
+        if probe.needs_password and not kwargs.get("password"):
+            password = simpledialog.askstring(
+                _("extract.password_title"),
+                _("extract.password_prompt_certain") if probe.encrypted
+                else _("extract.password_prompt_suspected"),
+                show="*", parent=self.root)
+            if not password:
+                self.set_status(_("extract.cancelled"))
+                return
+            kwargs["password"] = password
+
+        img = data["img"]
+
+        def work():
             try:
                 return {"text": extract(img, **kwargs), "binary": False}
             except StegoError:
-                data = extract(img, as_text=False, **kwargs)
-                return {"text": repr(data[:512]), "binary": True}
+                # Not text, but the container opened: show it as bytes rather
+                # than calling a successful extraction a failure.
+                raw = extract(img, as_text=False, **kwargs)
+                return {"text": repr(raw[:512]), "binary": True}
 
         self._run_async(work, self._extract_done)
 
@@ -613,8 +707,18 @@ class AdaptiveStegoApp:
         self._label(ttk.Button(files, command=lambda: self._pick_into(
             self.analyze_cover_var)), "common.browse").grid(row=1, column=2, pady=4)
 
-        self._label(ttk.Button(parent, command=self._run_analyze),
-                    "analyze.button").grid(row=2, column=0, sticky="w", pady=8)
+        controls = ttk.Frame(parent)
+        controls.grid(row=2, column=0, sticky="ew", pady=8)
+        self._label(ttk.Button(controls, command=self._run_analyze),
+                    "analyze.button").pack(side="left")
+        self.analyze_scan_var = tk.BooleanVar(value=True)
+        self._label(ttk.Checkbutton(controls, variable=self.analyze_scan_var),
+                    "analyze.deep_scan").pack(side="left", padx=(12, 0))
+        self._label(ttk.Label(controls), "common.key").pack(side="left",
+                                                            padx=(12, 4))
+        self.analyze_key_var = tk.StringVar()
+        ttk.Entry(controls, textvariable=self.analyze_key_var,
+                  width=16).pack(side="left")
 
         self.analyze_text = tk.Text(parent, wrap="none", height=18,
                                     font=("Courier New", 9))
@@ -640,9 +744,15 @@ class AdaptiveStegoApp:
             return
         cover_path = self.analyze_cover_var.get()
 
+        deep = bool(self.analyze_scan_var.get())
+        key = self.analyze_key_var.get() or None
+
         def work():
             img = read_image(path)
-            report = analysis.quick_report(img)
+            # One call does the whole chain: file structure, statistics, the
+            # trained model and the container scan, each reporting its own
+            # level. The GUI only lays out what comes back.
+            full = forensics.full_report(path, key=key, scan_methods=deep)
             caps = {name: capacity(img, method=name)["message_bytes_max"]
                     for name in container_methods()}
             quality = None
@@ -650,24 +760,83 @@ class AdaptiveStegoApp:
                 cover = read_image(cover_path)
                 if cover.shape == img.shape:
                     quality = metrics.quality_report(cover, img)
-            return {"path": path, "shape": img.shape, "report": report,
+            return {"path": path, "shape": img.shape, "full": full,
                     "caps": caps, "quality": quality}
 
         self._run_async(work, self._analyze_done)
 
+    _LEVEL_KEYS = {"clean": "analyze.level_clean",
+                   "suspicious": "analyze.level_suspicious",
+                   "detected": "analyze.level_detected"}
+
     def _analyze_done(self, data: dict) -> None:
-        report = data["report"]
+        full = data["full"]
+        report = full["pixels"]
         lines = [f"{os.path.basename(data['path'])}  "
                  f"{data['shape'][1]}x{data['shape'][0]}", ""]
-        lines.append(f"== {_('analyze.detect')} ==")
+
+        lines.append(f"== {_('analyze.overall')}: "
+                     f"{_(self._LEVEL_KEYS[full['level']])} ==")
+        lines.append("")
+
+        # -- what the file structure says -------------------------------
+        file_part = full["file"]
+        lines.append(f"== {_('analyze.file_structure')} ==")
+        lines.append(f"{_('analyze.format'):<34}{file_part['format']}")
+        lines.append(f"{_('analyze.file_size'):<34}"
+                     f"{_format_bytes(file_part['size'])}")
+        if file_part["findings"]:
+            for finding in file_part["findings"]:
+                lines.append(f"  [{finding['severity']}] {finding['kind']}: "
+                             f"{finding['detail']}")
+        else:
+            lines.append(f"  {_('analyze.file_clean')}")
+
+        # -- the statistical detectors ----------------------------------
+        lines += ["", f"== {_('analyze.detect')} =="]
         lines.append(f"{_('analyze.chi2'):<34}{report['chi2_p_max']:.4f}")
         lines.append(f"{_('analyze.spa'):<34}{report['spa_rate']:.4f}")
+        lines.append(f"{_('analyze.rs'):<34}{report['rs_rate']:.4f}")
+        lines.append(f"{_('analyze.ws'):<34}{report['ws_rate']:.4f}")
+        lines.append(f"{_('analyze.hcf'):<34}{report['hcf_ratio']:.4f}")
         lines.append(f"{_('analyze.ones'):<34}{report['ones_ratio']:.4f}")
         lines.append(f"{_('analyze.autocorr'):<34}{report['autocorr_lag1']:+.4f}")
-        suspect = report["spa_rate"] > 0.02
+
+        verdict = report["verdict"]
         lines.append("")
-        lines.append(_("analyze.verdict_suspect") if suspect
-                     else _("analyze.verdict_clean"))
+        lines.append(f"{_('analyze.statistics_say')}: "
+                     f"{_(self._LEVEL_KEYS[verdict['level']])}")
+        for reason in verdict["reasons"]:
+            lines.append(f"  + {reason}")
+        for note in verdict.get("notes", []):
+            lines.append(f"  . {note}")
+
+        # -- the trained model ------------------------------------------
+        model = full.get("model")
+        lines += ["", f"== {_('analyze.model')} =="]
+        if model is None:
+            lines.append(f"  {_('analyze.model_missing')}")
+        else:
+            lines.append(f"{_('analyze.model_probability'):<34}"
+                         f"{model['probability']:.3f}")
+            lines.append(f"{_('analyze.model_trained')}:")
+            lines.append(f"  {model['model']}")
+            lines.append(f"{_('analyze.model_scope')}:")
+            lines.append(f"  {model['valid_for']}")
+
+        # -- containers --------------------------------------------------
+        lines += ["", f"== {_('analyze.containers')} =="]
+        hits = full.get("containers") or []
+        if not hits:
+            lines.append(f"  {_('analyze.containers_none')}")
+        for hit in hits:
+            state = (_("analyze.container_readable") if hit.get("readable")
+                     else _("analyze.container_locked"))
+            lines.append(f"  {hit.get('method')} / {hit.get('bits_per_sample')} "
+                         f"bit: {_format_bytes(hit.get('container_bytes', 0))}, "
+                         f"{state}")
+
+        lines.append("")
         lines.append(_("analyze.verdict_hint"))
 
         if data["quality"]:

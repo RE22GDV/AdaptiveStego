@@ -144,3 +144,84 @@ def test_container_methods_exclude_syndrome_coding():
     assert "stc" not in names
     assert "adaptive" in names
     assert all(not get_codec(name).syndrome_coded for name in names)
+
+
+def test_embed_tab_offers_the_two_password_modes():
+    """The option to keep key material out of the image must reach the API."""
+    from adaptivestego.gui import AdaptiveStegoApp
+
+    root = _tk_root()
+    try:
+        app = AdaptiveStegoApp(root, language="en")
+        assert "no_key_material" in app.embed_params
+        assert app.embed_params["no_key_material"].get() is False
+        # The extract tab has no such option: the mode is not chosen on the
+        # way out, it is discovered.
+        assert app.extract_params["no_key_material"].get() is False
+    finally:
+        root.destroy()
+        i18n.set_language("en")
+
+
+def test_probe_description_says_what_was_found():
+    """The line shown after detection, before any password is asked for."""
+    from adaptivestego import container
+    from adaptivestego.gui import AdaptiveStegoApp
+
+    root = _tk_root()
+    try:
+        app = AdaptiveStegoApp(root, language="en")
+
+        missing = container.Probe(found=False, detail="nothing")
+        assert app._describe_probe(missing) == i18n.translate("extract.not_found")
+
+        header = container.Header(version=1, flags=container.FLAG_ENCRYPTED,
+                                  ecc_nsym=0, plain_len=40)
+        encrypted = container.Probe(found=True, header=header,
+                                    container_bytes=120, message_bytes=40,
+                                    encrypted=True, needs_password=True)
+        text = app._describe_probe(encrypted)
+        assert i18n.translate("extract.found_encrypted") in text
+        assert "40" in text
+
+        header = container.Header(version=1, flags=0, ecc_nsym=0, plain_len=40)
+        suspected = container.Probe(found=True, header=header,
+                                    container_bytes=90, message_bytes=40,
+                                    encryption_suspected=True,
+                                    needs_password=True)
+        assert (i18n.translate("extract.found_maybe_encrypted")
+                in app._describe_probe(suspected))
+    finally:
+        root.destroy()
+        i18n.set_language("en")
+
+
+def test_analyze_tab_renders_a_full_report():
+    """The analysis pane must lay out every section of a forensics report."""
+    import os
+    import tempfile
+
+    from adaptivestego import forensics
+    from adaptivestego.gui import AdaptiveStegoApp
+    from adaptivestego.image_io import write_image
+    from adaptivestego.testing import synthetic_cover
+
+    root = _tk_root()
+    try:
+        app = AdaptiveStegoApp(root, language="en")
+        cover = synthetic_cover(64, 64, seed=3)
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "cover.png")
+            write_image(path, cover)
+            full = forensics.full_report(path, scan_methods=False)
+            app._analyze_done({"path": path, "shape": cover.shape,
+                               "full": full, "caps": {"adaptive": 1024},
+                               "quality": None})
+
+        text = app.analyze_text.get("1.0", "end-1c")
+        for key in ("analyze.overall", "analyze.file_structure",
+                    "analyze.detect", "analyze.model", "analyze.containers"):
+            assert i18n.translate(key) in text, key
+    finally:
+        root.destroy()
+        i18n.set_language("en")

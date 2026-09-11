@@ -10,12 +10,16 @@ embedding method still works, only ``--password`` is unavailable.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
 
 from .exceptions import CryptoError, DependencyError
 
 __all__ = ["KDF_SCRYPT", "SALT_LEN", "NONCE_LEN", "TAG_LEN",
-           "derive_key", "encrypt", "decrypt", "available"]
+           "derive_key", "encrypt", "decrypt", "available",
+           "encrypt_derived", "decrypt_derived", "derived_salt",
+           "derived_nonce"]
 
 KDF_SCRYPT = 1
 
@@ -83,6 +87,68 @@ def decrypt(blob: bytes, password, salt: bytes, nonce: bytes, aad: bytes = b"") 
     key = derive_key(password, salt)
     try:
         return aesgcm(key).decrypt(nonce, blob, aad)
+    except Exception as exc:
+        raise CryptoError(
+            "decryption failed: wrong password or corrupted data"
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# key material derived from the password instead of stored
+# ---------------------------------------------------------------------------
+# The functions above put a fresh random salt and nonce next to the ciphertext,
+# which is the textbook arrangement and the right default. The ones below
+# derive both from the password and from a caller-supplied context, so that
+# nothing belonging to the password has to travel with the message.
+#
+# What that buys and what it costs is spelled out in docs/security.md; the one
+# rule a caller must respect is stated here as well, because getting it wrong
+# breaks AES-GCM outright: *the context must differ between any two messages
+# encrypted under the same password*. The nonce is a function of the password
+# and the context alone, and GCM loses both confidentiality and integrity the
+# moment a nonce repeats under one key.
+_SALT_INFO = b"ASG1/derived-salt/v1"
+_NONCE_INFO = b"ASG1/derived-nonce/v1"
+
+
+def _password_bytes(password) -> bytes:
+    if password is None:
+        return b""
+    if isinstance(password, str):
+        return password.encode("utf-8")
+    return bytes(password)
+
+
+def derived_salt(password, context: bytes) -> bytes:
+    """Per-message scrypt salt, reproducible from the password and context."""
+    return hmac.new(_password_bytes(password), _SALT_INFO + context,
+                    hashlib.sha256).digest()[:SALT_LEN]
+
+
+def derived_nonce(key: bytes, context: bytes) -> bytes:
+    """Per-message GCM nonce, reproducible from the derived key and context."""
+    return hmac.new(key, _NONCE_INFO + context, hashlib.sha256).digest()[:NONCE_LEN]
+
+
+def encrypt_derived(plaintext: bytes, password, context: bytes) -> bytes:
+    """Encrypt without producing any key material for the caller to store.
+
+    The context is also authenticated, so a receiver that reconstructs it from
+    different header values gets an authentication failure rather than garbage.
+    """
+    aesgcm = _aesgcm()
+    salt = derived_salt(password, context)
+    key = derive_key(password, salt)
+    return aesgcm(key).encrypt(derived_nonce(key, context), plaintext, context)
+
+
+def decrypt_derived(blob: bytes, password, context: bytes) -> bytes:
+    """Undo :func:`encrypt_derived`, given the same password and context."""
+    aesgcm = _aesgcm()
+    salt = derived_salt(password, context)
+    key = derive_key(password, salt)
+    try:
+        return aesgcm(key).decrypt(derived_nonce(key, context), blob, context)
     except Exception as exc:
         raise CryptoError(
             "decryption failed: wrong password or corrupted data"

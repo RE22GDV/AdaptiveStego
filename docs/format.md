@@ -40,6 +40,16 @@ All multi-byte fields are big endian.
    from scrypt (N = 2^16, r = 8, p = 1, 32 bytes) over the password and a
    16-byte salt. The nonce is 12 random bytes and the 16-byte authentication
    tag is part of `payload_len`.
+
+   With `store_key_material=False` (`--no-key-material`) the salt and the
+   nonce are not written and the `ENCRYPTED` flag stays clear: both are
+   derived by HMAC-SHA256 from the password and from the header fields the
+   receiver reads before decrypting, and that same context is the GCM
+   associated data. Such a container is byte for byte the shape of an
+   unencrypted one and 28 bytes shorter. What it trades away is in
+   [security.md](security.md); the short version is that the encryption
+   becomes deterministic and nonce uniqueness comes to rest on two messages
+   never sharing both their lengths and their CRC32.
 4. **Reed-Solomon** is applied when `ecc_nsym` is non-zero. The preamble (with a
    fixed 8 parity bytes), the header body (one block) and the payload (blocks of
    223 data bytes) are encoded separately, so the header can be parsed before
@@ -54,6 +64,12 @@ All multi-byte fields are big endian.
 | the message is intact | CRC32 of the plaintext | altered data |
 | the message is authentic | AES-GCM tag | tampering, a wrong password |
 
+A reader that is given a password and finds no `ENCRYPTED` flag tries the
+derived form first and falls back to reading the payload as plaintext, so a
+password offered where none is needed is harmless. A reader given no password
+that cannot make sense of the payload says so, and says whether the payload
+looks like ciphertext - see [detection.md](detection.md).
+
 ## Overhead
 
 Without encryption or ECC a container adds **24 bytes**. With encryption it is
@@ -63,6 +79,9 @@ Without encryption or ECC a container adds **24 bytes**. With encryption it is
 overhead = 24 + 8 + nsym + (encrypted ? 44 : 0)
 payload  = original * (223 + nsym) / 223
 ```
+
+Encrypted without stored key material it is **40 bytes**: the tag, and nothing
+else beyond the plain container.
 
 For comparison, the original `decoder.py` spent 12 bits on every ASCII
 character instead of 8 - half the capacity lost to alignment - and carried no

@@ -8,8 +8,8 @@
 A research bench for image steganography and steganalysis: content-adaptive LSB
 embedding, minimum-distortion embedding through syndrome-trellis coding, five
 baseline methods to compare them against, quality metrics, twelve attacks on
-the container, classical detectors, and a desktop interface in English,
-Ukrainian and Russian.
+the container, a four-stage detection toolkit with a trained classifier, and a
+desktop interface in English, Ukrainian and Russian.
 
 **The hypothesis this project exists to test.** Choosing which samples and which
 colour channels carry the message according to the local textural complexity of
@@ -33,6 +33,8 @@ changes.
 - [Usage](#usage) - [desktop](#desktop-interface), [command line](#command-line), [Python](#python-api)
 - [How it works](#how-it-works)
 - [Methods](#embedding-methods)
+- [Finding hidden data](#finding-hidden-data)
+- [Passwords](#passwords)
 - [Syndrome coding](docs/syndrome-coding.md)
 - [Experimental results](#experimental-results)
 - [Performance](#performance)
@@ -120,8 +122,12 @@ python -m adaptivestego extract -i stego.png --method adaptive --key my-key --pa
 # how much would fit
 python -m adaptivestego capacity -i cover.png --method adaptive
 
-# is there anything in this image?
+# is there anything in this image?  (file structure, statistics, model, scan)
+python -m adaptivestego detect -i suspect.png
+
+# just the pixel statistics, or just the container search
 python -m adaptivestego analyze -i suspect.png
+python -m adaptivestego scan    -i suspect.png --key my-key
 
 # quality of a cover/stego pair, and attacks on a container
 python -m adaptivestego metrics -c cover.png -s stego.png
@@ -131,6 +137,17 @@ python -m adaptivestego attack -i stego.png -o attacked.png --attack jpeg:qualit
 Passwords are never taken from the command line by default: `--password` without
 a value prompts for it, and `--password-env VAR` reads it from the environment,
 so it does not end up in the process list or the shell history.
+
+Extraction happens in two phases. It finds the container and says what it is
+before it needs a password, and asks for one only once it knows one is
+required:
+
+```console
+$ python -m adaptivestego extract -i stego.png --method adaptive --key my-key
+found: 77 B container, 37 B message, encrypted
+Password:
+meet at 17:40
+```
 
 ### Python API
 
@@ -157,6 +174,18 @@ bits = sl.payload_bits_for_bpp(cover, 0.4)          # 0.4 * pixels, rounded
 payload = adaptivestego.prng.deterministic_bits("seed-material", "payload", bits)
 result = sl.embed_raw(cover, payload, method="adaptive", key="k")
 back = sl.extract_raw(result.stego, bits, method="adaptive", key="k")
+```
+
+Detection is available on its own, and never needs a password:
+
+```python
+probe = sl.detect(sl.read_image("suspect.png"), method="adaptive", key="my-key")
+print(probe.summary())
+# {'found': True, 'container_bytes': 77, 'message_bytes': 37,
+#  'encrypted': True, 'needs_password': True, 'readable': False, ...}
+
+from adaptivestego import forensics
+report = forensics.full_report("suspect.png")     # all four stages
 ```
 
 The method, the key and the map settings are **not stored in the image**. The
@@ -243,6 +272,108 @@ It was worth doing. The first comparison failed by a factor of five: MATLAB's
 SciPy, and with two convolutions per filter that shifted every cost map by two
 pixels. The two files also disagree on the wet cost - 10^10 in `WOW.m`, 10^8 in
 `S_UNIWARD.m` - which no description of either algorithm mentions.
+
+## Finding hidden data
+
+`detect` runs four stages that look in different places. A clean result from
+one says nothing about the others, so all four run and each reports its own
+level; full details in [docs/detection.md](docs/detection.md).
+
+**1. File structure.** Most of what is called image steganography in practice
+never touches a pixel. Bytes appended after a PNG's IEND chunk, a message in a
+`tEXt` chunk, a JPEG comment segment, the gap a BMP header may leave before its
+pixels, an archive signature somewhere in the middle, an extension that does not
+match the magic bytes - all definite answers, all cheap, all checked first.
+
+**2. Pixel statistics.** Chi-square, SPA, RS and the weighted stego-image
+estimator. The last three estimate the same quantity - the fraction of samples
+changed by LSB replacement - and all three are reported, because they fail
+differently.
+
+**3. A trained detector.** SPAM features and Fisher's linear discriminant, 18 KB,
+about 15 ms per image, trained on the first 5 000 BOSSBase images. This is the
+only stage that sees LSB matching.
+
+**4. A container scan.** If the data was hidden with this tool, the ASG1 header
+can simply be found - every method and bit depth is tried. The key cannot be
+searched, which is what it is for.
+
+### What the detectors actually achieve
+
+Measured on 150 BOSSBase images no shipped model was trained on
+(`experiments/calibrate_detectors.py --skip 5000`). The numbers are the share of
+images called out, so the first row is the false-positive rate:
+
+| | SPA | RS | WS | verdict | model |
+| --- | --- | --- | --- | --- | --- |
+| **clean images** | 0.01 | 0.01 | 0.00 | **0.01** | 0.09 |
+| sequential 0.1 | 0.66 | 0.74 | 0.75 | 0.73 | 0.28 |
+| random 0.1 | 0.97 | 0.97 | 1.00 | 0.99 | 0.65 |
+| random 0.5 | 1.00 | 1.00 | 1.00 | 1.00 | 0.98 |
+| **matching 0.1** | 0.02 | 0.02 | 0.03 | 0.02 | **0.63** |
+| **matching 0.5** | 0.07 | 0.07 | 0.07 | 0.07 | **0.91** |
+| adaptive 0.25 | 0.47 | 0.59 | 0.18 | 0.47 | 0.53 |
+| adaptive 0.5 | 1.00 | 1.00 | 0.82 | 1.00 | 0.83 |
+| adaptive-matching 0.1 | 0.01 | 0.01 | 0.01 | 0.01 | 0.26 |
+| adaptive-matching 0.5 | 0.87 | 0.96 | 0.66 | 0.87 | 0.92 |
+
+Read the matching rows against the first one: the classical detectors fire on
+LSB matching at exactly their false-positive rate, which is to say they do not
+see it at all. That is not a shortcoming to be tuned away - they detect a
+structure that ±1 embedding never creates - and it is the entire reason the
+trained model is here.
+
+Read the adaptive rows too. At 0.1 bpp nothing in this repository detects
+content-adaptive embedding; the model is at 0.26, close to chance. Training
+SRNet is the next step on the roadmap, and claiming detection here would be the
+easiest way to publish something false.
+
+Two detectors were deliberately left out of the verdict score after measuring
+them: a high chi-square probability somewhere in the image occurs on 22 % of
+clean photographs, and a calibrated HCF ratio below 0.92 on 29 %. Both are
+reported; neither is evidence on its own. Only the *sequential shape* of
+chi-square - high at the start of the image, low at the end - is specific
+enough to count, at 1.3 % on clean images.
+
+### Training your own detector
+
+```bash
+python experiments/train_detector.py --images "data/bossbase/*.pgm" \
+    --limit 5000 --method matching adaptive-matching random adaptive \
+    --bpp 0.1 0.2 0.4 --jobs 16
+```
+
+The split is by image, so a cover and the stego made from it never land on
+opposite sides of it. Every model file carries its provenance - dataset,
+method, payload, held-out AUC, and a digest of the image list it saw - and
+every prediction reports it, because a model trained on 512x512 grayscale
+photographs says nothing useful about a screenshot.
+
+## Passwords
+
+The password never enters the image in any mode: it derives a key, and the key
+is used inside AES-256-GCM. What does travel with an encrypted message by
+default is its *key material* - the scrypt salt, the GCM nonce and the flag
+saying the payload is encrypted. Those are public by design, but they announce
+that a password was used.
+
+`--no-key-material` removes all three. The salt and the nonce are derived from
+the password and the header fields instead, the container becomes byte for byte
+the shape of an unencrypted one, and it is 28 bytes shorter. The receiver still
+needs only the password.
+
+```bash
+python -m adaptivestego embed -c cover.png -o stego.png -t "secret" \
+    --password --no-key-material
+```
+
+It costs three things, spelled out in [docs/security.md](docs/security.md):
+the encryption becomes deterministic, the salt is no longer per-message random,
+and nonce uniqueness rests on two messages never sharing both their lengths and
+their CRC32 - which cannot happen by accident but can be arranged by someone who
+chooses the plaintexts. **Do not use it for messages an adversary can
+influence.** Use the default unless you specifically need the container to say
+nothing.
 
 ## Experimental results
 
@@ -479,9 +610,17 @@ command line, the library version, the key and the seeds.
 * **It is not encryption by itself.** Without `--password` the payload is stored
   in the clear and anyone who knows the method and the key can read it.
   Steganography hides that a message exists; cryptography protects what it says.
-* **The detectors here are a weak baseline.** Chi-square and SPA see LSB
-  replacement and are blind to +/-1. A claim about "lower detectability" only
-  becomes real against an SRNet-class detector, on BOSSBase or ALASKA#2.
+* **The detectors here stop short of the interesting case.** The statistical
+  ones see LSB replacement and are blind to +/-1 by construction; the trained
+  model covers that, but at 0.1 bpp against content-adaptive embedding it is
+  close to chance. A claim about "lower detectability" only becomes real
+  against an SRNet-class detector, on BOSSBase or ALASKA#2.
+* **A clean verdict means these tools found nothing.** It is not a statement
+  that the image is clean. The report says what was checked and why it
+  concluded what it did, so the right response is to read the reasons.
+* **`--no-key-material` is a trade, not a free improvement.** It makes the
+  encryption deterministic and rests nonce uniqueness on the header fields;
+  see [docs/security.md](docs/security.md) before using it.
 * **The results above are on synthetic covers.** They demonstrate that the bench
   works and that the effect exists; they are not a publishable finding.
 * **Robustness numbers depend on the mode.** Error correction only exists in the
@@ -505,14 +644,18 @@ src/adaptivestego/
   codecs/         the seven methods behind one registry
   metrics.py      PSNR, SSIM, BER, embedding efficiency
   attacks.py      twelve container distortions
-  analysis.py     chi-square, SPA, bit-plane statistics
+  analysis.py     chi-square, SPA, RS, WS, HCF-COM, bit planes, the verdict
+  forensics.py    file-structure detection and the combined report
+  features.py     SPAM features
+  detector.py     the trained classifier, and how to fit one
+  models/         the shipped model, with its provenance
   selftest.py     the cross-platform determinism digest
   gui.py          tkinter interface
   i18n.py         English, Ukrainian, Russian
   cli.py          command line interface
-experiments/      benchmark, report, performance, figures
-docs/             format, architecture, syndrome coding, limitations, protocol
-tests/            111 tests plus a runner that works without pytest
+experiments/      benchmark, report, performance, figures, detector training
+docs/             format, architecture, syndrome coding, detection, security
+tests/            186 tests plus a runner that works without pytest
 legacy/           the original decoder.py this project grew out of
 ```
 

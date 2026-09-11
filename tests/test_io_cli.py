@@ -53,9 +53,9 @@ def test_embed_file_roundtrip():
         assert sl.extract_file(stego, method="adaptive", key="k") == MESSAGE
 
 
-def _run_cli(args, tmp):
+def _run_cli(args, tmp, **extra_env):
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "src"),
-               PYTHONIOENCODING="utf-8")
+               PYTHONIOENCODING="utf-8", **extra_env)
     return subprocess.run([sys.executable, "-m", "adaptivestego", *args], cwd=tmp,
                           env=env, capture_output=True, text=True, encoding="utf-8")
 
@@ -158,3 +158,84 @@ def test_legacy_capacity_check_underestimates_wide_codepoints():
     message = "中文🙂"
     needed_pixels = len(_legacy_build(message)) / 6
     assert needed_pixels > 2 * len(message)   # the capacity check would pass
+
+
+def test_cli_detect_reports_a_clean_image_and_a_stego_one():
+    """`detect` exits 0 on a clean image and non-zero when it finds something."""
+    import json
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cover = os.path.join(tmp, "cover.png")
+        stego = os.path.join(tmp, "stego.png")
+        write_image(cover, synthetic_cover(96, 96, seed=40))
+
+        clean = _run_cli(["detect", "-i", cover, "--no-scan"], tmp)
+        assert clean.returncode == 0, clean.stderr
+        assert json.loads(clean.stdout)["level"] == "clean"
+
+        _run_cli(["embed", "-c", cover, "-o", stego, "-t", MESSAGE,
+                  "--method", "random", "--key", "k"], tmp)
+        found = _run_cli(["detect", "-i", stego, "--key", "k"], tmp)
+        assert found.returncode == 1, found.stderr
+        report = json.loads(found.stdout)
+        assert report["container_found"]
+        assert any(hit["readable"] for hit in report["containers"])
+
+
+def test_cli_scan_finds_the_method():
+    import json
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cover = os.path.join(tmp, "cover.png")
+        stego = os.path.join(tmp, "stego.png")
+        write_image(cover, synthetic_cover(96, 96, seed=41))
+        _run_cli(["embed", "-c", cover, "-o", stego, "-t", "found me",
+                  "--method", "random", "--key", "k", "--bits", "2"], tmp)
+
+        result = _run_cli(["scan", "-i", stego, "--key", "k"], tmp)
+        hits = json.loads(result.stdout)["hits"]
+        assert hits and hits[0]["method"] == "random"
+        assert hits[0]["bits_per_sample"] == 2
+
+
+def test_cli_extract_announces_what_it_found_before_the_password():
+    """The detection phase must report, and a missing password must not hang."""
+    from adaptivestego import crypto
+
+    if not crypto.available():
+        from conftest import skip
+        skip("the cryptography package is not installed")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cover = os.path.join(tmp, "cover.png")
+        stego = os.path.join(tmp, "stego.png")
+        write_image(cover, synthetic_cover(96, 96, seed=42))
+
+        embedded = _run_cli(["embed", "-c", cover, "-o", stego, "-t",
+                             "classified", "--method", "random", "--key", "k",
+                             "--password-env", "PW"], tmp, PW="pw")
+        assert embedded.returncode == 0, embedded.stderr
+
+        # No password, no terminal to prompt on: it must say what it found and
+        # then say what it needs, rather than waiting for input that cannot come.
+        blocked = _run_cli(["extract", "-i", stego, "--method", "random",
+                            "--key", "k"], tmp)
+        assert blocked.returncode == 2
+        assert "encrypted" in blocked.stderr
+        assert "password" in blocked.stderr
+
+        opened = _run_cli(["extract", "-i", stego, "--method", "random",
+                           "--key", "k", "--password-env", "PW"], tmp, PW="pw")
+        assert opened.returncode == 0, opened.stderr
+        assert opened.stdout.strip() == "classified"
+        assert "found:" in opened.stderr
+
+
+def test_cli_refuses_no_key_material_without_a_password():
+    with tempfile.TemporaryDirectory() as tmp:
+        cover = os.path.join(tmp, "cover.png")
+        write_image(cover, synthetic_cover(64, 64, seed=43))
+        result = _run_cli(["embed", "-c", cover, "-o", "out.png", "-t", "x",
+                           "--no-key-material"], tmp)
+        assert result.returncode == 2
+        assert "--no-key-material" in result.stderr

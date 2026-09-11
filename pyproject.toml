@@ -58,6 +58,11 @@ adaptivestego-gui = "adaptivestego.gui:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# The trained detector ships with the package: it is 18 KB, and without it the
+# analysis commands lose the only stage that sees LSB matching.
+[tool.setuptools.package-data]
+adaptivestego = ["models/*.npz"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]

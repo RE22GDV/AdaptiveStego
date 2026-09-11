@@ -9,13 +9,13 @@ import numpy as np
 
 from . import container, core
 from .bitio import bits_to_bytes, bytes_to_bits
-from .codecs import EmbedParams, get_codec
+from .codecs import CODECS, EmbedParams, get_codec
 from .exceptions import CapacityError, ContainerError, StegoError
 from .image_io import read_image, write_image
 
-__all__ = ["EmbedResult", "capacity", "embed", "extract",
-           "embed_file", "extract_file", "embed_raw", "extract_raw",
-           "payload_bits_for_bpp"]
+__all__ = ["EmbedResult", "capacity", "embed", "extract", "detect", "scan",
+           "embed_file", "extract_file", "detect_file", "embed_raw",
+           "extract_raw", "payload_bits_for_bpp"]
 
 _PARAM_KEYS = ("bits_per_sample", "key", "map_kind", "band_bits", "mode",
                "channels", "map_mask_bits", "stc_height", "cost_gamma",
@@ -51,7 +51,8 @@ class EmbedResult:
 
 def _params(kw: dict) -> EmbedParams:
     known = {k: v for k, v in kw.items() if k in _PARAM_KEYS and v is not None}
-    unknown = set(kw) - set(_PARAM_KEYS) - {"password", "ecc_nsym", "compress"}
+    unknown = (set(kw) - set(_PARAM_KEYS)
+               - {"password", "ecc_nsym", "compress", "store_key_material"})
     if unknown:
         raise TypeError(f"unknown parameters: {', '.join(sorted(unknown))}")
     return EmbedParams(**known)
@@ -79,16 +80,18 @@ def _refuse_container(codec) -> None:
 
 
 def capacity(img: np.ndarray, method: str = "adaptive", *, password=None,
-             ecc_nsym: int = 0, **kw) -> dict:
+             ecc_nsym: int = 0, store_key_material: bool = True, **kw) -> dict:
     """Report how much data the given method can hide in this image."""
     _codec, params, n_samples = _prepare(img, method, kw)
     bits = core.capacity_bits(n_samples, params.bits_per_sample)
     n_pixels = img.shape[0] * img.shape[1]
     ecc_nsym = int(ecc_nsym or 0)
-    fixed = container.overhead(encrypted=password is not None, ecc_nsym=ecc_nsym)
+    fixed = container.overhead(encrypted=password is not None, ecc_nsym=ecc_nsym,
+                               store_key_material=store_key_material)
     usable = container.max_message_bytes(bits // 8,
                                          encrypted=password is not None,
-                                         ecc_nsym=ecc_nsym)
+                                         ecc_nsym=ecc_nsym,
+                                         store_key_material=store_key_material)
     return {
         "method": method,
         "capacity_bits": bits,
@@ -103,12 +106,19 @@ def capacity(img: np.ndarray, method: str = "adaptive", *, password=None,
 
 def embed(img: np.ndarray, message, *, method: str = "adaptive", key=None,
           password=None, compress: bool = True, ecc_nsym: int = 0,
-          **kw) -> EmbedResult:
-    """Hide a message inside a uint8 image array."""
+          store_key_material: bool = True, **kw) -> EmbedResult:
+    """Hide a message inside a uint8 image array.
+
+    ``store_key_material=False`` keeps the salt, the nonce and the "this is
+    encrypted" flag out of the image; the receiver needs only the password,
+    the same as before, but a third party parsing the container learns nothing
+    about it. It requires a password.
+    """
     codec, params, n_samples = _prepare(img, method, dict(kw, key=key))
     _refuse_container(codec)
     blob = container.pack(message, password=password, compress=compress,
-                          ecc_nsym=ecc_nsym)
+                          ecc_nsym=ecc_nsym,
+                          store_key_material=store_key_material)
     bits = bytes_to_bits(blob)
 
     cap = core.capacity_bits(n_samples, params.bits_per_sample)
@@ -183,19 +193,13 @@ def extract_raw(img: np.ndarray, n_bits: int, *, method: str = "adaptive",
     return codec.extract(img, int(n_bits), params)
 
 
-def extract(img: np.ndarray, *, method: str = "adaptive", key=None,
-            password=None, as_text: bool = True, **kw):
-    """Recover a message from a stego image.
-
-    The method, key, bits per sample and map settings must match the ones used
-    for embedding: none of them are stored inside the image.
+def _reader(img: np.ndarray, codec, params, n_samples: int):
+    """A sequential ``read(n) -> bytes`` over the bits the codec would use.
 
     Positions are produced lazily. The header is read from a small prefix, and
     only then are enough positions computed for the payload it announces, so a
     short message in a large image never orders the whole image.
     """
-    codec, params, n_samples = _prepare(img, method, dict(kw, key=key))
-    _refuse_container(codec)
     state: dict = {"off": 0, "limit": 0, "positions": None}
 
     def positions_for(samples: int) -> np.ndarray:
@@ -217,7 +221,74 @@ def extract(img: np.ndarray, *, method: str = "adaptive", key=None,
         state["off"] += n
         return bits_to_bytes(chunk)
 
-    payload, _header = container.unpack(read, password=password)
+    return read
+
+
+def detect(img: np.ndarray, *, method: str = "adaptive", key=None,
+           password=None, **kw) -> container.Probe:
+    """Look for a container without trying to produce the message.
+
+    This is the first half of extraction on its own. It answers the questions
+    that can be answered without a password - is anything there, how big is
+    it, is it compressed, does it carry error correction, does it need a
+    password - and it never raises when the answer is simply "nothing here".
+
+    Passing the password as well turns it into a full dry run: the message is
+    decrypted and checked, but returned only as ``readable``.
+    """
+    codec, params, n_samples = _prepare(img, method, dict(kw, key=key))
+    _refuse_container(codec)
+    return container.probe(_reader(img, codec, params, n_samples),
+                           password=password)
+
+
+def scan(img: np.ndarray, *, key=None, methods=None, bits=(1, 2, 3, 4),
+         password=None, **kw) -> list[dict]:
+    """Try many parameter sets and report every one that finds a container.
+
+    Extraction needs the method, the bit depth and the key to match, and none
+    of them are stored in the image. The key cannot be searched - that is what
+    it is for - but the method and the bit depth can be, and that is usually
+    the difference between "there is nothing in this image" and "there is
+    something in this image and I was using the wrong settings".
+
+    Only the self-describing methods are tried; syndrome coding has no
+    container to find.
+    """
+    candidates = [n for n in (methods or list(CODECS))
+                  if not getattr(get_codec(n), "syndrome_coded", False)]
+    hits = []
+    for name in candidates:
+        for bits_per_sample in bits:
+            try:
+                probe = detect(img, method=name, key=key, password=password,
+                               bits_per_sample=bits_per_sample, **kw)
+            except (StegoError, ValueError):
+                continue
+            if probe.found:
+                hits.append({"method": name, "bits_per_sample": bits_per_sample,
+                             "key": key, **probe.summary()})
+    hits.sort(key=lambda h: (not h["readable"], not h["found"]))
+    return hits
+
+
+def extract(img: np.ndarray, *, method: str = "adaptive", key=None,
+            password=None, as_text: bool = True, **kw):
+    """Recover a message from a stego image.
+
+    The method, key, bits per sample and map settings must match the ones used
+    for embedding: none of them are stored inside the image.
+
+    Detection comes first: the container is located and its header read before
+    anything is decrypted, so a missing password is reported as
+    :class:`PasswordRequired` - with what was found attached to it - rather
+    than as a failure to extract. See :func:`detect` to do only that half.
+    """
+    codec, params, n_samples = _prepare(img, method, dict(kw, key=key))
+    _refuse_container(codec)
+
+    payload, _header = container.unpack(
+        _reader(img, codec, params, n_samples), password=password)
     if as_text:
         try:
             return payload.decode("utf-8")
@@ -240,3 +311,8 @@ def embed_file(cover_path: str, message, out_path: str, *,
 def extract_file(stego_path: str, *, grayscale: bool = False, **kw):
     """Read a stego image from disk and recover the message."""
     return extract(read_image(stego_path, grayscale=grayscale), **kw)
+
+
+def detect_file(stego_path: str, *, grayscale: bool = False, **kw):
+    """Read an image from disk and report what container it holds, if any."""
+    return detect(read_image(stego_path, grayscale=grayscale), **kw)
