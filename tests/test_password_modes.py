@@ -13,7 +13,11 @@ from conftest import raises, skip
 
 import adaptivestego as sl
 from adaptivestego import container, crypto
-from adaptivestego.exceptions import CryptoError, PasswordRequired
+from adaptivestego.exceptions import (
+    CryptoError,
+    DependencyError,
+    PasswordRequired,
+)
 from adaptivestego.testing import synthetic_cover
 
 MESSAGE = "Съешь ещё этих мягких французских булок, but in UTF-8 ✓"
@@ -267,3 +271,80 @@ def test_stego_images_of_the_two_modes_differ():
     derived = sl.embed(cover, MESSAGE, method="adaptive", key="k",
                        password=PASSWORD, store_key_material=False).stego
     assert not np.array_equal(stored, derived)
+
+
+# ---------------------------------------------------------------------------
+# behaviour when the cipher is not installed
+# ---------------------------------------------------------------------------
+class _NoCipher:
+    """Make every cipher call raise, as an uninstalled `cryptography` does.
+
+    The real condition only appears in an environment without the optional
+    package, which is exactly the environment the full test suite cannot
+    assume. Patching the two entry points reproduces it everywhere, so the
+    rule below is checked on every machine rather than on one CI job.
+    """
+
+    def __enter__(self):
+        self._saved = (crypto.decrypt, crypto.decrypt_derived)
+
+        def refuse(*_args, **_kwargs):
+            raise DependencyError(
+                "encryption requires the `cryptography` package: "
+                "pip install cryptography")
+
+        crypto.decrypt = refuse
+        crypto.decrypt_derived = refuse
+        return self
+
+    def __exit__(self, *_exc):
+        crypto.decrypt, crypto.decrypt_derived = self._saved
+        return False
+
+
+def test_a_plaintext_container_opens_without_the_cipher_installed():
+    """A redundant password must not turn an optional package into a hard one.
+
+    Derived mode has no flag to consult, so extraction tries to decrypt
+    whenever a password is offered. That speculative attempt must not stop a
+    plaintext container from being read on a machine with no cipher - which
+    is what a DependencyError escaping the CryptoError handler did, because
+    the two are siblings rather than parent and child.
+    """
+    cover = synthetic_cover(96, 96, seed=20)
+    result = sl.embed(cover, "no password here", method="adaptive", key="place")
+    with _NoCipher():
+        assert sl.extract(result.stego, method="adaptive", key="place",
+                          password="irrelevant") == "no password here"
+
+
+def test_a_missing_cipher_is_reported_as_a_missing_cipher():
+    """When the payload really is encrypted, say what is missing.
+
+    The fallback must not reach the "wrong password" message: the password
+    was never tried, and blaming it would send the user looking in the wrong
+    place.
+    """
+    _needs_crypto()
+    cover = synthetic_cover(128, 128, seed=21)
+    for store in (True, False):
+        result = sl.embed(cover, MESSAGE, method="adaptive", key="place",
+                          password=PASSWORD, compress=False,
+                          store_key_material=store)
+        with _NoCipher():
+            exc = raises(DependencyError, sl.extract, result.stego,
+                         method="adaptive", key="place", password=PASSWORD)
+        assert "cryptography" in str(exc)
+
+
+def test_detection_still_answers_without_the_cipher():
+    """Detection is the phase that answers instead of failing."""
+    _needs_crypto()
+    cover = synthetic_cover(128, 128, seed=22)
+    result = sl.embed(cover, MESSAGE, method="adaptive", key="place",
+                      password=PASSWORD)
+    with _NoCipher():
+        probe = sl.detect(result.stego, method="adaptive", key="place",
+                          password=PASSWORD)
+    assert probe.found and probe.encrypted and not probe.readable
+    assert "cryptography" in probe.detail

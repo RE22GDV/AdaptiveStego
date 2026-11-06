@@ -33,7 +33,12 @@ import zlib
 from dataclasses import dataclass
 
 from . import crypto, ecc
-from .exceptions import ContainerError, CryptoError, PasswordRequired
+from .exceptions import (
+    ContainerError,
+    CryptoError,
+    DependencyError,
+    PasswordRequired,
+)
 
 __all__ = ["MAGIC", "VERSION", "FLAG_COMPRESSED", "FLAG_ENCRYPTED", "FLAG_ECC",
            "PREAMBLE_LEN", "PREAMBLE_ECC_NSYM", "Header", "Probe", "pack",
@@ -397,6 +402,7 @@ def _open_payload(header: Header, payload: bytes, password) -> bytes:
                                               header.nonce))
 
     decryption_failed = False
+    no_cipher = None
     if password is not None:
         context = _derivation_context(header.flags, header.ecc_nsym,
                                       header.payload_len, header.plain_len,
@@ -404,6 +410,13 @@ def _open_payload(header: Header, payload: bytes, password) -> bytes:
         try:
             return _finish(header, crypto.decrypt_derived(payload, password,
                                                           context))
+        except DependencyError as exc:
+            # No cipher installed. This attempt is speculative - the header
+            # gives no reason to think the payload is encrypted - so a missing
+            # optional package must not stop a plaintext container from being
+            # read. Kept in case the plaintext path fails too, where it is the
+            # honest explanation.
+            no_cipher = exc
         except CryptoError:
             # Either the password is wrong or this container was never
             # encrypted and the password is simply redundant. Reading it as
@@ -413,17 +426,26 @@ def _open_payload(header: Header, payload: bytes, password) -> bytes:
     try:
         return _finish(header, payload)
     except ContainerError:
-        if decryption_failed:
-            raise CryptoError(
-                "decryption failed: wrong password, or the message was not "
-                "encrypted and is damaged") from None
-        if password is None and _looks_encrypted(header, payload):
-            raise PasswordRequired(
-                "a container is present but its payload does not read as a "
-                "message and looks like ciphertext: it was probably packed "
-                "with the key material derived from a password rather than "
-                "stored. Supply the password.", certain=False) from None
-        raise
+        if no_cipher is None:
+            if decryption_failed:
+                raise CryptoError(
+                    "decryption failed: wrong password, or the message was "
+                    "not encrypted and is damaged") from None
+            if password is None and _looks_encrypted(header, payload):
+                raise PasswordRequired(
+                    "a container is present but its payload does not read as "
+                    "a message and looks like ciphertext: it was probably "
+                    "packed with the key material derived from a password "
+                    "rather than stored. Supply the password.",
+                    certain=False) from None
+            raise
+
+    # Reading it as plaintext failed as well, so the payload really was
+    # encrypted and the missing cipher - not the checksum it tripped over on
+    # the way here - is what the caller needs to hear. Raised outside the
+    # handler so that it keeps pointing at the original ImportError rather
+    # than at the failure it caused.
+    raise no_cipher
 
 
 def unpack(read, *, password=None) -> tuple[bytes, Header]:
@@ -462,7 +484,11 @@ def probe(read, *, password=None) -> Probe:
     except PasswordRequired as exc:
         return Probe(**common, needs_password=True,
                      encryption_suspected=not exc.certain, detail=str(exc))
-    except (CryptoError, ContainerError) as exc:
+    except (CryptoError, ContainerError, DependencyError) as exc:
+        # DependencyError belongs here too: without the cipher installed an
+        # encrypted container cannot be opened, but detection is the phase
+        # that is supposed to answer rather than fail, and "there is a
+        # container here and this is why I cannot read it" is an answer.
         return Probe(**common, needs_password=header.encrypted,
                      encryption_suspected=(not header.encrypted
                                            and _looks_encrypted(header, payload)),
